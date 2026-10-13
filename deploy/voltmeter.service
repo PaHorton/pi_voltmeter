@@ -1,0 +1,13 @@
+[Unit]
+Description=Pi voltmeter
+After=local-fs.target
+
+[Service]
+User=pi
+Environment=VOLTMETER_HOME=/home/pi/voltmeter
+ExecStart=/home/pi/voltmeter-venv/bin/voltmeter
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

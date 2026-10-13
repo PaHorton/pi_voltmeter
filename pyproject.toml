@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voltmeter"
+version = "0.1.0"
+description = "Pi CM4 two-channel voltmeter (ADS1115) with OLED bonnet UI and USB CSV logging"
+requires-python = ">=3.9"
+dependencies = ["Pillow", "PyYAML"]
+
+[project.optional-dependencies]
+pi = ["smbus2", "luma.oled", "gpiozero", "lgpio"]
+dev = ["pytest"]
+
+[project.scripts]
+voltmeter = "voltmeter.app:main"
+
+[tool.setuptools]
+packages = ["voltmeter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

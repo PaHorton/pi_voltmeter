@@ -1,0 +1,27 @@
+# Device configuration. All keys are optional; values shown are the defaults.
+# Copy to $VOLTMETER_HOME/config.yaml (default ~/voltmeter/config.yaml) to customise.
+# User preferences changed from the on-screen menu live in settings.json instead.
+
+device:
+  adc:                     # ADS1115
+    bus: 1                 # I2C bus number
+    address: 0x48
+  display:                 # SSD1306 128x64 OLED
+    bus: 1
+    address: 0x3C
+  buttons:                 # BCM GPIO numbers (Adafruit OLED bonnet)
+    up: 17
+    down: 22
+    left: 27
+    right: 23
+    select: 4              # joystick press
+    a: 5
+    b: 6
+  usb:
+    mount_roots: [/media/, /mnt/, /run/media/]
+    device_prefix: /dev/sd
+    formulas_dir: formulas       # folder on the stick to import formulas from
+    log_dir: voltmeter_logs      # folder on the stick for CSV logs
+
+# Reserved for future sinks, e.g. TigerData / Grafana:
+database: {}
