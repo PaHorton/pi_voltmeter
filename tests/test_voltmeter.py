@@ -162,15 +162,17 @@ def test_config_overrides_and_missing(tmp_path):
     assert Config.load(tmp_path / "nope.yaml") == Config()
     p = tmp_path / "c.yaml"
     p.write_text("device:\n  adc: {address: 0x49}\n  buttons: {up: 5}\n  bogus: 1\n"
-                 "database: {host: db.example}\n")
+                 "database: {host: db.example, enabled: true, flush_interval_s: 2}\n")
     c = Config.load(p)
     assert c.device.adc.address == 0x49 and c.device.adc.bus == 1
     assert c.device.buttons.up == 5 and c.device.buttons.down == 22
-    assert c.database == {"host": "db.example"}
+    assert c.database.host == "db.example" and c.database.enabled
+    assert c.database.flush_interval_s == 2.0 and c.database.port == 5432
 
 
 @pytest.mark.parametrize("text", ["device: 3", "device:\n  adc: {address: abc}", "- a", "a: [",
-                                  "device:\n  usb: {mount_roots: x}"])
+                                  "device:\n  usb: {mount_roots: x}", "database: {enabled: yes_please}",
+                                  "database: {batch_size: 1.5}"])
 def test_config_invalid(tmp_path, text):
     p = tmp_path / "c.yaml"
     p.write_text(text)

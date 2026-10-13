@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, List
 
 import yaml
 
@@ -57,10 +57,27 @@ class DeviceConfig:
 
 
 @dataclass
+class DatabaseConfig:
+    """TigerData (Postgres + TimescaleDB). The password is never stored here: it is read
+    from the environment variable named by ``password_env``."""
+    enabled: bool = False
+    host: str = ""
+    port: int = 5432
+    dbname: str = "tsdb"
+    user: str = "tsdbadmin"
+    password_env: str = "VOLTMETER_DB_PASSWORD"
+    sslmode: str = "require"
+    table: str = "readings"
+    device_id: str = ""             # defaults to the hostname when empty
+    batch_size: int = 50            # rows per INSERT
+    flush_interval_s: float = 5.0   # max wait before sending a partial batch
+    max_buffer: int = 100000        # rows held in memory while offline; oldest dropped beyond
+
+
+@dataclass
 class Config:
     device: DeviceConfig = field(default_factory=DeviceConfig)
-    # Reserved for sinks (e.g. TigerData host/port/table); passed through untouched.
-    database: Dict[str, Any] = field(default_factory=dict)
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
 
     @classmethod
     def load(cls, path: Path) -> "Config":
@@ -95,14 +112,18 @@ def _build(cls, data: Any, where: str):
         default = getattr(cls(), key)
         if is_dataclass(default):
             kwargs[key] = _build(type(default), value or {}, path)
-        elif isinstance(default, dict):
-            if not isinstance(value, dict):
-                raise ValueError(f"'{path}' must be a mapping")
-            kwargs[key] = value
         elif isinstance(default, list):
             if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
                 raise ValueError(f"'{path}' must be a list of strings")
             kwargs[key] = value
+        elif isinstance(default, bool):
+            if not isinstance(value, bool):
+                raise ValueError(f"'{path}' must be true or false")
+            kwargs[key] = value
+        elif isinstance(default, float):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"'{path}' must be a number")
+            kwargs[key] = float(value)
         elif isinstance(default, int):
             if isinstance(value, bool) or not isinstance(value, int):
                 raise ValueError(f"'{path}' must be an integer")

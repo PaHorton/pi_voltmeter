@@ -23,5 +23,18 @@ device:
     formulas_dir: formulas       # folder on the stick to import formulas from
     log_dir: voltmeter_logs      # folder on the stick for CSV logs
 
-# Reserved for future sinks, e.g. TigerData / Grafana:
-database: {}
+# TigerData (Postgres + TimescaleDB) publishing. Get the host/port/user/dbname from your
+# service's connection details; export the password as $VOLTMETER_DB_PASSWORD (not stored here).
+database:
+  enabled: false
+  host: ""                       # e.g. abc123xyz.tsdb.cloud.timescale.com
+  port: 5432
+  dbname: tsdb
+  user: tsdbadmin
+  password_env: VOLTMETER_DB_PASSWORD
+  sslmode: require
+  table: readings
+  device_id: ""                  # defaults to this Pi's hostname
+  batch_size: 50                 # rows per INSERT
+  flush_interval_s: 5.0          # max wait before sending a partial batch
+  max_buffer: 100000             # rows kept in memory while offline (oldest dropped beyond)

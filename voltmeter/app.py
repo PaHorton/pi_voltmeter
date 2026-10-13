@@ -186,6 +186,12 @@ def main() -> None:
         adc, display, pad = Ads1115(dev.adc), Oled(dev.display), ButtonPad(dev.buttons)
 
     app = App(adc, display, pad, args.home, config)
+    if config.database.enabled:
+        from .tigerdata import build_sink
+        try:
+            app.add_sink(build_sink(config.database))
+        except ValueError as exc:
+            raise SystemExit(f"database config error: {exc}")
     try:
         app.run()
     except KeyboardInterrupt:

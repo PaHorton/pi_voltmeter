@@ -17,10 +17,29 @@ CM4 + ADS1115 (2 channels, single-ended A0/A1) + Adafruit 128x64 OLED bonnet.
 ## Configuration
 - `config.yaml` (default `~/voltmeter/config.yaml`, or `--config`): device-level setup, read once
   at startup. Covers ADC/OLED I2C bus and address, button GPIO pins, USB mount roots and the
-  formula/log folder names on the stick, plus a reserved `database:` section for future sinks
-  (e.g. TigerData). Every key is optional; see [config.yaml](config.yaml) for defaults.
+  formula/log folder names on the stick, plus the `database:` section for TigerData publishing. Every key is optional; see [config.yaml](config.yaml) for defaults.
   Bad values stop startup with a clear message; unknown keys are warned about and ignored.
 - `settings.json`: user preferences changed from the on-screen menu (not for hand editing).
+
+## TigerData (Grafana dashboard backend)
+1. Create a service at tigerdata.com and note its host, port, dbname and user.
+2. In `config.yaml` set `database.enabled: true` and `database.host` (plus the other fields).
+3. Install the driver: `pip install '.[tigerdata]'`.
+4. Provide the password via environment, never in the file: `export VOLTMETER_DB_PASSWORD=...`
+   (for systemd add `Environment=VOLTMETER_DB_PASSWORD=...` or an `EnvironmentFile=` line).
+
+The table (`readings` by default) is created automatically as a hypertable, one row per channel
+per record (every N seconds): `time, device_id, channel, volts, value, unit, formula`.
+`device_id` defaults to the hostname, so several devices can share a table. In Grafana add a
+PostgreSQL/TimescaleDB data source and query, e.g.:
+```sql
+SELECT time, value FROM readings
+WHERE device_id = 'pi-1' AND channel = 0 AND $__timeFilter(time) ORDER BY time
+```
+Uploads run on a background thread in batches. If the network drops, rows buffer in memory
+(up to `max_buffer`, oldest dropped beyond) and are sent on reconnect; duplicates are
+impossible on retry. The buffer is **not** persisted, so a power loss while offline loses the
+unsent rows (the USB CSV is the durable copy).
 
 ## Pi setup
 ```
