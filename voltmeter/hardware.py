@@ -31,7 +31,10 @@ class ButtonPad:
         self._q: "queue.Queue[Button]" = queue.Queue()
         self._buttons = []
         for button in Button:
-            gb = GpioButton(getattr(cfg, button.value), pull_up=True, bounce_time=0.03)
+            pin = getattr(cfg, button.value)
+            if pin is None:
+                continue
+            gb = GpioButton(pin, pull_up=True, bounce_time=0.03)
             gb.when_pressed = lambda b=button: self._q.put(b)
             self._buttons.append(gb)
 

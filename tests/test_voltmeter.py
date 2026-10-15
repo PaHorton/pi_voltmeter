@@ -186,3 +186,26 @@ def test_usb_config_used(tmp_path):
     m.write_text("/dev/sdb1 /data/stick vfat rw 0 0\n")
     assert find_usb_mount(mounts_file=str(m)) is None
     assert str(find_usb_mount(UsbConfig(mount_roots=["/data/"]), str(m))) == "/data/stick"
+
+
+class FixedAdc:
+    def read_volts(self, channel, n, range_v):
+        return 1.0
+
+    def close(self):
+        pass
+
+
+def test_divider_scales_channels(tmp_path):
+    p = tmp_path / "c.yaml"
+    p.write_text("device:\n  adc:\n    ch0_divider: {r_top: 10, r_bottom: 1}\n")
+    app = App(FixedAdc(), SimDisplay(), NullPad(), tmp_path, Config.load(p))
+    r = app.sample()
+    assert r.channels[0].volts == pytest.approx(11.0)
+    assert r.channels[1].volts == pytest.approx(1.0)
+
+
+def test_divider_invalid(tmp_path):
+    from voltmeter.config import DividerConfig
+    with pytest.raises(ValueError):
+        DividerConfig(r_top=1, r_bottom=0).ratio

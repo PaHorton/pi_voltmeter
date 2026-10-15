@@ -29,6 +29,7 @@ class App:
         self.config = config or Config()
         if usb_finder is None:
             usb_finder = lambda: find_usb_mount(self.config.device.usb)  # noqa: E731
+        self._divider = self.config.device.adc.ratios()
         self.home = home
         self.formula_dir = home / "formulas"
         self.settings_path = home / "settings.json"
@@ -85,7 +86,7 @@ class App:
         channels = []
         for ch in range(NUM_CHANNELS):
             formula = self.formulas.get(s.formulas[ch], RAW)
-            volts = self.adc.read_volts(ch, AVG_SAMPLES, s.range_v)
+            volts = self.adc.read_volts(ch, AVG_SAMPLES, s.range_v) * self._divider[ch]
             channels.append(ChannelReading(volts, formula(volts), formula.unit, formula.name))
         return Reading(datetime.now().astimezone(), channels)
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 
 import yaml
 
@@ -17,9 +17,31 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
+class DividerConfig:
+    """Resistor divider ahead of an ADC input: signal -- r_top -- ADC pin -- r_bottom -- GND.
+
+    The default (r_top 0) means no divider. Units cancel, so use ohms or kohms.
+    """
+    r_top: float = 0.0
+    r_bottom: float = 1.0
+
+    @property
+    def ratio(self) -> float:
+        """Multiply the voltage at the ADC pin by this to get the input voltage."""
+        if self.r_top < 0 or self.r_bottom <= 0:
+            raise ValueError("divider: r_top must be >= 0 and r_bottom > 0")
+        return (self.r_top + self.r_bottom) / self.r_bottom
+
+
+@dataclass
 class AdcConfig:
     bus: int = 1
     address: int = 0x48
+    ch0_divider: DividerConfig = field(default_factory=DividerConfig)
+    ch1_divider: DividerConfig = field(default_factory=DividerConfig)
+
+    def ratios(self) -> list:
+        return [self.ch0_divider.ratio, self.ch1_divider.ratio]
 
 
 @dataclass
@@ -35,7 +57,7 @@ class ButtonsConfig:
     down: int = 22
     left: int = 27
     right: int = 23
-    select: int = 4
+    select: Optional[int] = field(default=4, metadata={"nullable": True})  # null disables
     a: int = 5
     b: int = 6
 
@@ -108,6 +130,9 @@ def _build(cls, data: Any, where: str):
         path = f"{where}.{key}" if where else key
         if key not in known:
             log.warning("config: ignoring unknown key '%s'", path)
+            continue
+        if value is None and known[key].metadata.get("nullable"):
+            kwargs[key] = None
             continue
         default = getattr(cls(), key)
         if is_dataclass(default):

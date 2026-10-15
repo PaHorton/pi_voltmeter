@@ -49,6 +49,7 @@ mkdir -p ~/voltmeter/formulas && cp formulas/*.txt ~/voltmeter/formulas/ && cp c
 sudo cp deploy/voltmeter.service /etc/systemd/system/ && sudo systemctl enable --now voltmeter
 ```
 - Defaults: ADS1115 `0x48`, OLED `0x3C`; change them in `config.yaml`.
+- Input dividers: set `device.adc.ch0_divider` / `ch1_divider` (`r_top`, `r_bottom`) if a resistor divider sits ahead of an ADC input. Readings, formulas and logs then see the real input voltage (pin voltage × (r_top + r_bottom) / r_bottom). The menu "Range" is the ADC pin range, not the input range.
 - USB must be auto-mounted under a `usb.mount_roots` folder (`/media`, `/mnt`, `/run/media` by default) (Pi OS desktop does this;
   on Lite install `usbmount` or `udisks2`+`udiskie`). Remove the stick before unplugging
   to avoid data loss; the CSV is flushed every row and fsynced every second.
