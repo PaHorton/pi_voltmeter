@@ -20,10 +20,10 @@ log = logging.getLogger(__name__)
 class DividerConfig:
     """Resistor divider ahead of an ADC input: signal -- r_top -- ADC pin -- r_bottom -- GND.
 
-    The default (r_top 0) means no divider. Units cancel, so use ohms or kohms.
+    Defaults match this hardware (7k / 3k); set r_top to 0 for no divider. Units cancel.
     """
-    r_top: float = 0.0
-    r_bottom: float = 1.0
+    r_top: float = 7.0
+    r_bottom: float = 3.0
 
     @property
     def ratio(self) -> float:

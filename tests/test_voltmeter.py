@@ -128,7 +128,7 @@ def test_menu_changes_formula_and_value(tmp_path):
     app.ui.handle(Button.RIGHT)  # Ch0: Raw -> next in sorted(["Raw","mv"]) = "mv"
     assert app.settings.formulas[0] == "mv"
     app.step()
-    assert app.last_reading.channels[0].value == pytest.approx(1000)
+    assert app.last_reading.channels[0].value == pytest.approx(1000 * 10 / 3)  # default 7k/3k divider
     app.ui.render(app.last_reading, __import__("voltmeter.ui", fromlist=["Status"]).Status()).save(tmp_path / "x.png")
 
 
@@ -198,7 +198,7 @@ class FixedAdc:
 
 def test_divider_scales_channels(tmp_path):
     p = tmp_path / "c.yaml"
-    p.write_text("device:\n  adc:\n    ch0_divider: {r_top: 10, r_bottom: 1}\n")
+    p.write_text("device:\n  adc:\n    ch0_divider: {r_top: 10, r_bottom: 1}\n    ch1_divider: {r_top: 0, r_bottom: 1}\n")
     app = App(FixedAdc(), SimDisplay(), NullPad(), tmp_path, Config.load(p))
     r = app.sample()
     assert r.channels[0].volts == pytest.approx(11.0)

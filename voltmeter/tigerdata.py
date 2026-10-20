@@ -8,7 +8,9 @@ retry after an ambiguous failure cannot create duplicates.
 Schema (one row per channel per record; Grafana-friendly "long" format)::
 
     time timestamptz, device_id text, channel smallint,
-    volts double precision, value double precision, unit text, formula text
+    volts double precision, unit text, formula text
+
+``volts`` is the input voltage (after the divider); apply the formula downstream.
 """
 from __future__ import annotations
 
@@ -45,15 +47,14 @@ class TigerDataSink:
         self._conn: Any = None
         self._dropped = 0
         self._insert_sql = (
-            f"INSERT INTO {cfg.table} (time, device_id, channel, volts, value, unit, formula) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING")
+            f"INSERT INTO {cfg.table} (time, device_id, channel, volts, unit, formula) "
+            "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING")
         self._thread = threading.Thread(target=self._run, name="tigerdata", daemon=True)
         self._thread.start()
 
     # ---- Sink interface ----------------------------------------------
     def write(self, reading: Reading) -> None:
-        rows = [(reading.timestamp, self.device_id, i, _num(c.volts), _num(c.value),
-                 c.unit, c.formula) for i, c in enumerate(reading.channels)]
+        rows = [(reading.timestamp, self.device_id, i, _num(c.volts), c.unit, c.formula) for i, c in enumerate(reading.channels)]
         with self._lock:
             self._buf.extend(rows)
             self._trim()
@@ -114,7 +115,7 @@ class TigerDataSink:
             cur.execute(
                 f"CREATE TABLE IF NOT EXISTS {t} ("
                 "time timestamptz NOT NULL, device_id text NOT NULL, channel smallint NOT NULL, "
-                "volts double precision, value double precision, unit text, formula text, "
+                "volts double precision, unit text, formula text, "
                 "PRIMARY KEY (device_id, channel, time))")
         conn.commit()
         try:  # plain Postgres has no hypertables; TigerData does

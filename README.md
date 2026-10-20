@@ -29,11 +29,12 @@ CM4 + ADS1115 (2 channels, single-ended A0/A1) + Adafruit 128x64 OLED bonnet.
    (for systemd, put `VOLTMETER_DB_PASSWORD=...` in `/etc/voltmeter.env`, `chmod 600`; the unit loads it if present).
 
 The table (`readings` by default) is created automatically as a hypertable, one row per channel
-per record (every N seconds): `time, device_id, channel, volts, value, unit, formula`.
+per record (every N seconds): `time, device_id, channel, volts, unit, formula`. `volts` is the input voltage (after the
+divider); the formula is a label only, so apply it in the query (e.g. `10 ^ ((volts - 7.75)/0.75 - 0.125)`).
 `device_id` defaults to the hostname, so several devices can share a table. In Grafana add a
 PostgreSQL/TimescaleDB data source and query, e.g.:
 ```sql
-SELECT time, value FROM readings
+SELECT time, volts FROM readings
 WHERE device_id = 'pi-1' AND channel = 0 AND $__timeFilter(time) ORDER BY time
 ```
 Uploads run on a background thread in batches. If the network drops, rows buffer in memory

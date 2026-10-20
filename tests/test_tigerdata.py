@@ -90,7 +90,7 @@ def test_rows_inserted_one_per_channel_and_schema_created():
     sink.write(reading())
     assert wait_for(lambda: len(db.rows) == 2)
     sink.close()
-    assert db.rows[0][1:] == ("pi-1", 0, 1.0, 100.0, "degC", "lm35")
+    assert db.rows[0][1:] == ("pi-1", 0, 1.0, "degC", "lm35")
     assert db.rows[1][2] == 1
     assert any("CREATE TABLE IF NOT EXISTS readings" in s for s in db.statements)
     assert any("create_hypertable" in s for s in db.statements)
@@ -99,10 +99,10 @@ def test_rows_inserted_one_per_channel_and_schema_created():
 def test_nan_becomes_null():
     db = FakeDb()
     sink = make(db)
-    sink.write(reading(value=math.nan))
+    sink.write(reading(v=math.nan))
     assert wait_for(lambda: len(db.rows) == 2)
     sink.close()
-    assert db.rows[0][4] is None
+    assert db.rows[0][3] is None
 
 
 def test_outage_buffers_then_recovers_without_loss():
