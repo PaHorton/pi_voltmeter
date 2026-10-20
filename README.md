@@ -84,12 +84,11 @@ stored formula name to its `volts` using the same `formulas/*.txt` and parser as
 3. Optional but recommended: as admin run `db/timescale_setup.sql` (continuous aggregate
    `readings_1m`, compression after 1 day, 90-day retention). Then set `READINGS_AGG=readings_1m`;
    history ranges of 6 h and longer read the aggregate instead of raw rows.
-4. Deploy with GitHub Actions (`.github/workflows/deploy-web.yml`): create a Vercel project
-   (leave **Root Directory** empty, framework "Other"), add `DATABASE_URL` (+ `READINGS_AGG`) in its
-   environment variables, and add repo secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
-   (the last two are in `.vercel/project.json` after running `vercel link` in `web/`).
-   Pushes to `main` that touch the web app or formulas run tests, then deploy. The workflow copies
-   `voltmeter/formulas.py` and `formulas/` into `web/` before deploying.
+4. Deploy: import the repo in Vercel with **Root Directory** `web`, framework "Other", and add
+   `DATABASE_URL` (+ `READINGS_AGG`) as environment variables. Every push to `main` redeploys.
+   `web/` must be self-contained, so it holds copies of `voltmeter/formulas.py` and `formulas/*.txt`;
+   after editing the originals run `cp voltmeter/formulas.py web/voltmeter/ && cp formulas/*.txt web/formulas/`
+   (a test fails if they drift). GitHub Actions (`.github/workflows/ci.yml`) runs the tests.
 
 The page has a history graph (1m to 24h, per device/channel, value or volts, linear or log).
 Channels older than `STALE_AFTER_S` (30 s) are dimmed and marked stale. If a row names a formula

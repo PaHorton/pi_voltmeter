@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 HERE = Path(__file__).resolve().parent
-# On Vercel the deploy workflow stages voltmeter/ and formulas/ next to this file.
+# web/ carries its own copy of voltmeter/formulas.py and formulas/ (Vercel only uploads web/).
 ROOT = HERE if (HERE / "formulas").is_dir() else HERE.parent
 sys.path.insert(0, str(ROOT))
 

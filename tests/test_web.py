@@ -131,3 +131,13 @@ def test_agg_name_validated(monkeypatch):
     monkeypatch.setenv("READINGS_AGG", "x; drop table y")
     with pytest.raises(ValueError):
         webapp._ident("READINGS_AGG", "")
+
+
+def test_web_copies_match_sources():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    pairs = [(root / "voltmeter/formulas.py", root / "web/voltmeter/formulas.py")]
+    pairs += [(f, root / "web/formulas" / f.name) for f in (root / "formulas").glob("*.txt")]
+    for src, copy in pairs:
+        assert copy.read_bytes() == src.read_bytes(), f"{copy} out of sync; copy it from {src}"
