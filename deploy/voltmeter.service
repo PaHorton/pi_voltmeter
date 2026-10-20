@@ -1,11 +1,17 @@
 [Unit]
 Description=Pi voltmeter
 After=local-fs.target
+# Uncomment if the TigerData sink is enabled and needs the network at start:
+# After=network-online.target
+# Wants=network-online.target
 
 [Service]
-User=pi
-Environment=VOLTMETER_HOME=/home/pi/voltmeter
-ExecStart=/home/pi/voltmeter-venv/bin/voltmeter
+User=admin
+Environment=VOLTMETER_HOME=/home/admin/voltmeter
+# Put VOLTMETER_DB_PASSWORD=... in this file (chmod 600) when database.enabled is true
+EnvironmentFile=-/etc/voltmeter.env
+WorkingDirectory=/home/admin/voltmeter
+ExecStart=/home/admin/voltmeter-venv/bin/voltmeter
 Restart=always
 RestartSec=3
 

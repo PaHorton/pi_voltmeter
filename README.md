@@ -26,7 +26,7 @@ CM4 + ADS1115 (2 channels, single-ended A0/A1) + Adafruit 128x64 OLED bonnet.
 2. In `config.yaml` set `database.enabled: true` and `database.host` (plus the other fields).
 3. Install the driver: `pip install '.[tigerdata]'`.
 4. Provide the password via environment, never in the file: `export VOLTMETER_DB_PASSWORD=...`
-   (for systemd add `Environment=VOLTMETER_DB_PASSWORD=...` or an `EnvironmentFile=` line).
+   (for systemd, put `VOLTMETER_DB_PASSWORD=...` in `/etc/voltmeter.env`, `chmod 600`; the unit loads it if present).
 
 The table (`readings` by default) is created automatically as a hypertable, one row per channel
 per record (every N seconds): `time, device_id, channel, volts, value, unit, formula`.
@@ -46,7 +46,8 @@ unsent rows (the USB CSV is the durable copy).
 sudo raspi-config nonint do_i2c 0        # enable I2C
 python3 -m venv ~/voltmeter-venv && ~/voltmeter-venv/bin/pip install '.[pi]'
 mkdir -p ~/voltmeter/formulas && cp formulas/*.txt ~/voltmeter/formulas/ && cp config.yaml ~/voltmeter/
-sudo cp deploy/voltmeter.service /etc/systemd/system/ && sudo systemctl enable --now voltmeter
+# edit User/paths in deploy/voltmeter.service if your user is not "admin"
+sudo cp deploy/voltmeter.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now voltmeter
 ```
 - Defaults: ADS1115 `0x48`, OLED `0x3C`; change them in `config.yaml`.
 - Input dividers: set `device.adc.ch0_divider` / `ch1_divider` (`r_top`, `r_bottom`) if a resistor divider sits ahead of an ADC input. Readings, formulas and logs then see the real input voltage (pin voltage × (r_top + r_bottom) / r_bottom). The menu "Range" is the ADC pin range, not the input range.
