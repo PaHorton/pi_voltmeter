@@ -12,7 +12,8 @@ dependencies = ["Pillow", "PyYAML"]
 [project.optional-dependencies]
 pi = ["smbus2", "luma.oled", "gpiozero", "lgpio"]
 tigerdata = ["psycopg[binary]"]
-dev = ["pytest"]
+web = ["fastapi", "psycopg[binary]", "uvicorn"]
+dev = ["pytest", "httpx"]
 
 [project.scripts]
 voltmeter = "voltmeter.app:main"

@@ -70,3 +70,19 @@ voltmeter --sim --home /tmp/vm      # writes the screen to /tmp/voltmeter.png
   add a class with `write(reading)` / `close()` (batch + retry in a background thread so the
   sampling loop never blocks) and register it with `App.add_sink(...)`. Grafana reads
   from the TigerData (Postgres) table.
+
+## Web dashboard (Vercel)
+`web/` is a FastAPI app that shows the latest value of every channel, refreshed every 2 s
+(`/` is the page, `/api/latest` the JSON). It reads the `readings` table and applies each row's
+stored formula name to its `volts` using the same `formulas/*.txt` and parser as the Pi.
+
+1. In `psql` (as the admin user) run `db/readonly_role.sql` after setting a password; the web app
+   gets a SELECT-only role, never the admin or Pi credentials.
+2. Run locally:
+   `DATABASE_URL='postgres://voltmeter_web:PASSWORD@HOST:PORT/tsdb?sslmode=require' uvicorn app:app --reload`
+   from `web/` (needs `pip install '.[web]'`).
+3. Deploy: import the GitHub repo in Vercel, set **Root Directory** to `web`, keep "Include source
+   files outside of the Root Directory" enabled (the app reads `../formulas` and `../voltmeter`),
+   and add the `DATABASE_URL` environment variable. Optional: `READINGS_TABLE`, `STALE_AFTER_S`.
+Channels older than `STALE_AFTER_S` (30 s) are dimmed and marked stale. If a row names a formula
+that is not in `formulas/`, the page falls back to showing volts.
