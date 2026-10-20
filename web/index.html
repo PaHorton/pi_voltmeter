@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOLTMETER</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: { colors: {
+      ink: "#050505", lime: "#b6ff00", pink: "#ff2bd6", cyan: "#00f0ff", sun: "#fff200"
+    } } }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  body { background: #050505; background-image: linear-gradient(#111 1px, transparent 1px), linear-gradient(90deg, #111 1px, transparent 1px); background-size: 32px 32px; }
+  .stale-hatch { background-image: repeating-linear-gradient(45deg, transparent 0 10px, rgba(255,255,255,.07) 10px 20px); }
+  .btn { transition: transform .05s, box-shadow .05s; }
+  .btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 0 #000 !important; }
+</style>
+</head>
+<body class="min-h-screen text-white font-mono uppercase selection:bg-pink selection:text-black">
+<div class="max-w-6xl mx-auto p-4 sm:p-8">
+
+  <header class="flex flex-wrap items-end justify-between gap-4 mb-8 border-4 border-lime bg-ink p-4 shadow-[8px_8px_0_0_#b6ff00]">
+    <h1 class="text-4xl sm:text-6xl font-black tracking-tighter text-lime leading-none">VOLTMETER<span class="text-pink">_</span></h1>
+    <div id="status" class="text-xs sm:text-sm font-bold bg-sun text-black px-2 py-1 border-2 border-black">BOOTING</div>
+  </header>
+
+  <section id="cards" class="grid gap-6 sm:grid-cols-2 mb-10"></section>
+
+  <section class="border-4 border-pink bg-ink p-4 sm:p-6 shadow-[8px_8px_0_0_#ff2bd6]">
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-4 mb-4">
+      <h2 class="text-2xl font-black text-pink mr-auto">HISTORY</h2>
+
+      <div class="flex flex-wrap gap-2" id="ranges" role="group" aria-label="Time range"></div>
+    </div>
+    <div class="flex flex-wrap items-center gap-3 mb-4 text-sm font-bold">
+      <label class="flex items-center gap-2">DEVICE
+        <select id="device" class="bg-black border-2 border-cyan text-cyan px-2 py-1 uppercase"></select></label>
+      <label class="flex items-center gap-2">CHANNEL
+        <select id="channel" class="bg-black border-2 border-cyan text-cyan px-2 py-1"></select></label>
+      <div class="flex" role="group" aria-label="Metric">
+        <button data-metric="value" class="metric btn border-2 border-cyan px-3 py-1">VALUE</button>
+        <button data-metric="volts" class="metric btn border-2 border-l-0 border-cyan px-3 py-1">VOLTS</button>
+      </div>
+      <div class="flex" role="group" aria-label="Y scale">
+        <button data-scale="linear" class="scale btn border-2 border-cyan px-3 py-1">LINEAR</button>
+        <button data-scale="logarithmic" class="scale btn border-2 border-l-0 border-cyan px-3 py-1">LOG</button>
+      </div>
+    </div>
+    <div class="border-4 border-white bg-black p-2 h-80 relative">
+      <canvas id="chart"></canvas>
+      <div id="chart-msg" class="absolute inset-0 flex items-center justify-center text-sun font-black text-xl pointer-events-none"></div>
+    </div>
+    <div id="chart-meta" class="mt-3 text-xs text-white/60 normal-case"></div>
+  </section>
+
+  <footer class="mt-10 text-xs text-white/40">DATA: TIGERDATA · FORMULAS APPLIED SERVER-SIDE FROM STORED VOLTS</footer>
+</div>
+
+<script>
+const RANGES = ["1m","5m","10m","30m","1h","6h","12h","24h"];
+const COLORS = ["#b6ff00", "#00f0ff", "#ff2bd6", "#fff200"];
+const state = Object.assign({ range: "10m", device: null, channel: 0, metric: "value", scale: "linear" },
+                            JSON.parse(localStorage.getItem("vm-state") || "{}"));
+if (!RANGES.includes(state.range)) state.range = "10m";
+const save = () => localStorage.setItem("vm-state", JSON.stringify(state));
+
+function fmt(v) {
+  if (v === null || v === undefined) return "ERR";
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 0.001 || a >= 1e6)) ? v.toExponential(3) : String(Number(v.toPrecision(5)));
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function setStatus(text, ok) {
+  const s = document.getElementById("status");
+  s.textContent = text;
+  s.className = "text-xs sm:text-sm font-bold px-2 py-1 border-2 border-black " + (ok ? "bg-lime text-black" : "bg-pink text-black");
+}
+
+/* ---------- live cards ---------- */
+let devices = {};
+async function tickLatest() {
+  try {
+    const r = await fetch("/api/latest", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    devices = d.devices;
+    renderCards();
+    syncSelectors();
+    setStatus("LIVE " + new Date().toLocaleTimeString(), true);
+  } catch (e) {
+    setStatus("OFFLINE (" + e.message + ")", false);
+  }
+}
+function renderCards() {
+  const box = document.getElementById("cards");
+  box.replaceChildren();
+  const names = Object.keys(devices);
+  if (!names.length) { box.append(el("div", "border-4 border-sun text-sun p-6 text-xl font-black", "NO READINGS IN THE LAST 24 HOURS")); return; }
+  for (const n of names) for (const c of devices[n]) {
+    const color = COLORS[c.channel % COLORS.length];
+    const card = el("article", "border-4 bg-ink p-4 " + (c.stale ? "stale-hatch opacity-60" : ""));
+    card.style.borderColor = color;
+    card.style.boxShadow = "8px 8px 0 0 " + color;
+    const top = el("div", "flex justify-between items-start text-sm font-black");
+    top.append(el("span", "bg-white text-black px-2", n + " / CH" + c.channel));
+    if (c.stale) top.append(el("span", "bg-pink text-black px-2", "STALE"));
+    const val = el("div", "mt-3 flex items-baseline gap-3 flex-wrap");
+    const num = el("span", "text-5xl sm:text-6xl font-black tabular-nums break-all", fmt(c.value));
+    num.style.color = color;
+    val.append(num, el("span", "text-xl font-black text-white", c.unit || ""));
+    const meta = el("div", "mt-3 text-xs text-white/60 normal-case",
+      (c.formula || "") + " · " + (c.volts === null ? "–" : c.volts.toFixed(3) + " V") + " · " + Math.round(c.age_s) + "s ago");
+    card.append(top, val, meta);
+    box.append(card);
+  }
+}
+
+/* ---------- controls ---------- */
+function styleToggle(sel, attr, active) {
+  document.querySelectorAll(sel).forEach(b => {
+    const on = b.dataset[attr] === active;
+    b.classList.toggle("bg-cyan", on); b.classList.toggle("text-black", on);
+    b.classList.toggle("text-cyan", !on); b.classList.toggle("shadow-[4px_4px_0_0_#00f0ff]", !on);
+  });
+}
+function styleRanges() {
+  document.querySelectorAll("#ranges button").forEach(b => {
+    const on = b.dataset.range === state.range;
+    b.classList.toggle("bg-pink", on); b.classList.toggle("text-black", on);
+    b.classList.toggle("text-pink", !on); b.classList.toggle("shadow-[4px_4px_0_0_#ff2bd6]", !on);
+  });
+}
+function buildRanges() {
+  const box = document.getElementById("ranges");
+  for (const r of RANGES) {
+    const b = el("button", "btn border-2 border-pink px-3 py-1 font-black", r.toUpperCase());
+    b.dataset.range = r;
+    b.onclick = () => { state.range = r; save(); styleRanges(); loadHistory(); };
+    box.append(b);
+  }
+  styleRanges();
+}
+function syncSelectors() {
+  const dev = document.getElementById("device"), ch = document.getElementById("channel");
+  const names = Object.keys(devices);
+  if (!names.length) return;
+  if (!names.includes(state.device)) state.device = names[0];
+  if (dev.options.length !== names.length || [...dev.options].some((o, i) => o.value !== names[i])) {
+    dev.replaceChildren(...names.map(n => { const o = el("option", "", n); o.value = n; return o; }));
+  }
+  dev.value = state.device;
+  const chans = devices[state.device].map(c => c.channel);
+  if (!chans.includes(state.channel)) state.channel = chans[0];
+  if (ch.options.length !== chans.length) {
+    ch.replaceChildren(...chans.map(n => { const o = el("option", "", "CH" + n); o.value = n; return o; }));
+  }
+  ch.value = state.channel;
+  styleToggle(".metric", "metric", state.metric);
+  styleToggle(".scale", "scale", state.scale);
+  if (!chart && !loading) loadHistory();
+}
+document.getElementById("device").onchange = e => { state.device = e.target.value; save(); loadHistory(); };
+document.getElementById("channel").onchange = e => { state.channel = Number(e.target.value); save(); loadHistory(); };
+document.querySelectorAll(".metric").forEach(b => b.onclick = () => { state.metric = b.dataset.metric; save(); styleToggle(".metric", "metric", state.metric); draw(); });
+document.querySelectorAll(".scale").forEach(b => b.onclick = () => { state.scale = b.dataset.scale; save(); styleToggle(".scale", "scale", state.scale); draw(); });
+
+/* ---------- history chart ---------- */
+let chart = null, loading = false, history = null;
+async function loadHistory() {
+  if (!state.device || loading) return;
+  loading = true;
+  try {
+    const q = new URLSearchParams({ device: state.device, channel: state.channel, range: state.range });
+    const r = await fetch("/api/history?" + q, { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    history = await r.json();
+    draw();
+  } catch (e) {
+    document.getElementById("chart-msg").textContent = "HISTORY UNAVAILABLE (" + e.message + ")";
+  } finally { loading = false; }
+}
+function draw() {
+  if (!history) return;
+  const useValue = state.metric === "value";
+  const log = state.scale === "logarithmic";
+  const color = COLORS[state.channel % COLORS.length];
+  let pts = history.points.map(p => ({ x: p[0], y: useValue ? p[2] : p[1] }));
+  if (log) pts = pts.filter(p => p.y !== null && p.y > 0);
+  const unit = useValue ? history.unit : "V";
+  document.getElementById("chart-msg").textContent = pts.length ? "" : "NO DATA IN THIS RANGE";
+  document.getElementById("chart-meta").textContent =
+    "device " + history.device + " · ch" + history.channel + " · " + (useValue ? (history.formula || "raw") : "raw volts") +
+    " · " + pts.length + " points, " + history.bucket_s + "s average per point" + (log ? " · non-positive values hidden on log scale" : "");
+  const cfg = {
+    type: "line",
+    data: { datasets: [{ data: pts, borderColor: color, backgroundColor: color, borderWidth: 3, pointRadius: pts.length < 60 ? 3 : 0,
+                          pointBackgroundColor: color, tension: 0, spanGaps: false }] },
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false, parsing: false,
+      plugins: { legend: { display: false }, tooltip: { displayColors: false, cornerRadius: 0,
+        callbacks: { title: i => new Date(i[0].parsed.x).toLocaleTimeString(), label: i => fmt(i.parsed.y) + " " + unit } } },
+      scales: {
+        x: { type: "linear", ticks: { color: "#fff", maxTicksLimit: 8, callback: v => new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: state.range === "1m" || state.range === "5m" ? "2-digit" : undefined }) },
+             grid: { color: "#333" }, border: { color: "#fff", width: 3 } },
+        y: { type: state.scale, title: { display: true, text: unit, color: color, font: { weight: "bold" } },
+             ticks: { color: "#fff", callback: v => fmt(v) }, grid: { color: "#333" }, border: { color: "#fff", width: 3 } }
+      }
+    }
+  };
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("chart"), cfg);
+}
+
+buildRanges();
+tickLatest();
+setInterval(tickLatest, 2000);
+setInterval(loadHistory, 5000);
+</script>
+</body>
+</html>

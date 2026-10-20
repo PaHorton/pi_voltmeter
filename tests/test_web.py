@@ -45,7 +45,7 @@ def test_stale_null_and_nonfinite():
 def test_endpoints(monkeypatch):
     monkeypatch.setattr(webapp, "fetch_latest", lambda: [row(1, 1.0, "Raw"), row(0, 2.0, "Raw")])
     client = TestClient(webapp.app)
-    assert "Voltmeter" in client.get("/").text
+    assert "VOLTMETER" in client.get("/").text
     r = client.get("/api/latest")
     assert r.status_code == 200
     assert [c["channel"] for c in r.json()["devices"]["htvpi"]] == [0, 1]
@@ -63,3 +63,71 @@ def test_table_name_validated(monkeypatch):
     monkeypatch.setenv("READINGS_TABLE", "x; drop table y")
     with pytest.raises(ValueError):
         webapp._table()
+
+
+def hrow(offset_s, volts, formula="pressure_torr"):
+    return {"time": NOW - timedelta(seconds=offset_s), "formula": formula, "volts": volts}
+
+
+def test_bucket_sizes_target_about_300_points():
+    assert webapp.bucket_seconds(60) == 1
+    assert webapp.bucket_seconds(3600) == 12
+    assert webapp.bucket_seconds(86400) == 288
+    assert set(webapp.RANGES) == {"1m", "5m", "10m", "30m", "1h", "6h", "12h", "24h"}
+
+
+def test_history_payload_applies_formula_and_handles_gaps():
+    out = webapp.build_history([hrow(20, 7.75), hrow(10, None), hrow(0, 1e9)], FORMULAS)
+    assert out["unit"] == "Torr" and out["formula"] == "pressure_torr"
+    (t0, v0, y0), (_, v1, y1), (_, _, y2) = out["points"]
+    assert v0 == 7.75 and y0 == pytest.approx(10 ** -0.125)
+    assert v1 is None and y1 is None and y2 is None
+    assert t0 == int((NOW - timedelta(seconds=20)).timestamp() * 1000)
+
+
+def test_history_endpoint(monkeypatch):
+    seen = {}
+
+    def fake(range_s, bucket_s, device, channel):
+        seen.update(range_s=range_s, bucket_s=bucket_s, device=device, channel=channel)
+        return [hrow(1, 2.0, "Raw")]
+    monkeypatch.setattr(webapp, "fetch_history", fake)
+    client = TestClient(webapp.app)
+    r = client.get("/api/history", params={"device": "htvpi", "channel": 1, "range": "1h"})
+    assert r.status_code == 200 and r.json()["bucket_s"] == 12 and len(r.json()["points"]) == 1
+    assert seen == {"range_s": 3600, "bucket_s": 12, "device": "htvpi", "channel": 1}
+    assert client.get("/api/history", params={"device": "x", "channel": 0, "range": "2d"}).status_code == 400
+    assert client.get("/api/history", params={"device": "x", "channel": 9}).status_code == 422
+    assert client.get("/api/history").status_code == 422
+
+
+def test_history_database_error_is_generic(monkeypatch):
+    def boom(*a):
+        raise RuntimeError("password=hunter2")
+    monkeypatch.setattr(webapp, "fetch_history", boom)
+    r = TestClient(webapp.app).get("/api/history", params={"device": "d", "channel": 0})
+    assert r.status_code == 502 and "hunter2" not in r.text
+
+
+def test_history_breaks_line_across_offline_gap():
+    rows = [hrow(1000, 1.0, "Raw"), hrow(990, 1.0, "Raw"), hrow(100, 2.0, "Raw"), hrow(90, 2.0, "Raw")]
+    pts = webapp.build_history(rows, FORMULAS, bucket_s=10)["points"]
+    assert len(pts) == 5
+    assert pts[2][1] is None and pts[2][2] is None  # null point between the two clusters
+    assert [p[1] for p in pts if p[1] is not None] == [1.0, 1.0, 2.0, 2.0]
+    assert len(webapp.build_history(rows, FORMULAS)["points"]) == 4  # no bucket size: unchanged
+
+
+def test_history_sql_uses_aggregate_only_for_long_ranges():
+    short = webapp.history_sql(3600, "readings_1m")
+    long = webapp.history_sql(86400, "readings_1m")
+    assert "FROM readings " in short and "readings_1m" not in short
+    assert "FROM readings_1m" in long and "sum(volts * n) / sum(n)" in long
+    assert "readings_1m" not in webapp.history_sql(86400, "")
+    assert "time_bucket" in short and "last(" in webapp.fetch_latest.__code__.co_consts.__str__()
+
+
+def test_agg_name_validated(monkeypatch):
+    monkeypatch.setenv("READINGS_AGG", "x; drop table y")
+    with pytest.raises(ValueError):
+        webapp._ident("READINGS_AGG", "")

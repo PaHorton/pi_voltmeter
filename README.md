@@ -81,8 +81,16 @@ stored formula name to its `volts` using the same `formulas/*.txt` and parser as
 2. Run locally:
    `DATABASE_URL='postgres://voltmeter_web:PASSWORD@HOST:PORT/tsdb?sslmode=require' uvicorn app:app --reload`
    from `web/` (needs `pip install '.[web]'`).
-3. Deploy: import the GitHub repo in Vercel, set **Root Directory** to `web`, keep "Include source
-   files outside of the Root Directory" enabled (the app reads `../formulas` and `../voltmeter`),
-   and add the `DATABASE_URL` environment variable. Optional: `READINGS_TABLE`, `STALE_AFTER_S`.
+3. Optional but recommended: as admin run `db/timescale_setup.sql` (continuous aggregate
+   `readings_1m`, compression after 1 day, 90-day retention). Then set `READINGS_AGG=readings_1m`;
+   history ranges of 6 h and longer read the aggregate instead of raw rows.
+4. Deploy with GitHub Actions (`.github/workflows/deploy-web.yml`): create a Vercel project
+   (leave **Root Directory** empty, framework "Other"), add `DATABASE_URL` (+ `READINGS_AGG`) in its
+   environment variables, and add repo secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+   (the last two are in `.vercel/project.json` after running `vercel link` in `web/`).
+   Pushes to `main` that touch the web app or formulas run tests, then deploy. The workflow copies
+   `voltmeter/formulas.py` and `formulas/` into `web/` before deploying.
+
+The page has a history graph (1m to 24h, per device/channel, value or volts, linear or log).
 Channels older than `STALE_AFTER_S` (30 s) are dimmed and marked stale. If a row names a formula
 that is not in `formulas/`, the page falls back to showing volts.

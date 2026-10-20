@@ -6,6 +6,7 @@ Reads the latest rows from the TigerData ``readings`` table and applies each row
 Environment:
     DATABASE_URL     postgres URL for a SELECT-only role (see db/readonly_role.sql)
     READINGS_TABLE   table name, default "readings"
+    READINGS_AGG     optional continuous aggregate (db/timescale_setup.sql), used for ranges >= 6h
     STALE_AFTER_S    mark a channel stale after this many seconds, default 30
 """
 from __future__ import annotations
@@ -18,10 +19,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-ROOT = Path(__file__).resolve().parent.parent
+HERE = Path(__file__).resolve().parent
+# On Vercel the deploy workflow stages voltmeter/ and formulas/ next to this file.
+ROOT = HERE if (HERE / "formulas").is_dir() else HERE.parent
 sys.path.insert(0, str(ROOT))
 
-from fastapi import FastAPI, HTTPException  # noqa: E402
+from fastapi import FastAPI, HTTPException, Query  # noqa: E402
 from fastapi.responses import HTMLResponse  # noqa: E402
 
 from voltmeter.formulas import RAW, Formula, load_formulas  # noqa: E402
@@ -35,23 +38,28 @@ def _formulas() -> Dict[str, Formula]:
     return load_formulas(ROOT / "formulas")
 
 
+def _ident(env: str, default: str) -> str:
+    name = os.environ.get(env, default)
+    if name and not _IDENT.match(name):
+        raise ValueError(f"{env} must be a plain identifier")
+    return name
+
+
 def _table() -> str:
-    table = os.environ.get("READINGS_TABLE", "readings")
-    if not _IDENT.match(table):
-        raise ValueError("READINGS_TABLE must be a plain identifier")
-    return table
+    return _ident("READINGS_TABLE", "readings")
 
 
 def fetch_latest() -> List[Dict[str, Any]]:
-    """Latest row per (device, channel) from the last 24 h."""
+    """Latest row per (device, channel) from the last 24 h (TimescaleDB ``last()``)."""
     import psycopg
 
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
-    sql = (f"SELECT DISTINCT ON (device_id, channel) time, device_id, channel, volts, unit, formula "
+    sql = (f"SELECT max(time) AS time, device_id, channel, last(volts, time) AS volts, "
+           f"last(unit, time) AS unit, last(formula, time) AS formula "
            f"FROM {_table()} WHERE time > now() - interval '24 hours' "
-           f"ORDER BY device_id, channel, time DESC")
+           f"GROUP BY device_id, channel ORDER BY device_id, channel")
     with psycopg.connect(url, connect_timeout=5) as conn, conn.cursor() as cur:
         cur.execute(sql)
         cols = [c.name for c in cur.description]
@@ -93,54 +101,87 @@ def latest() -> Dict[str, Any]:
     return build_payload(rows, _formulas(), stale_after_s=float(os.environ.get("STALE_AFTER_S", "30")))
 
 
+RANGES: Dict[str, int] = {"1m": 60, "5m": 300, "10m": 600, "30m": 1800,
+                          "1h": 3600, "6h": 21600, "12h": 43200, "24h": 86400}
+TARGET_POINTS = 300
+
+
+def bucket_seconds(range_s: int) -> int:
+    return max(1, range_s // TARGET_POINTS)
+
+
+AGG_MIN_RANGE_S = 6 * 3600  # shorter ranges read raw rows; longer ones use the 1-minute aggregate
+
+
+def history_sql(range_s: int, agg: str = "") -> str:
+    """Bucketed average volts (per formula name, so a formula change mid-range stays correct)."""
+    if agg and range_s >= AGG_MIN_RANGE_S:
+        # re-average the 1-minute buckets, weighted by their row counts
+        return (f"SELECT time_bucket(make_interval(secs => %s), bucket) AS t, formula, "
+                f"sum(volts * n) / sum(n) AS volts FROM {agg} "
+                f"WHERE bucket > now() - make_interval(secs => %s) AND device_id = %s AND channel = %s "
+                f"GROUP BY 1, 2 ORDER BY 1")
+    return (f"SELECT time_bucket(make_interval(secs => %s), time) AS t, formula, avg(volts) AS volts "
+            f"FROM {_table()} "
+            f"WHERE time > now() - make_interval(secs => %s) AND device_id = %s AND channel = %s "
+            f"GROUP BY 1, 2 ORDER BY 1")
+
+
+def fetch_history(range_s: int, bucket_s: int, device: str, channel: int) -> List[Dict[str, Any]]:
+    import psycopg
+
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set")
+    sql = history_sql(range_s, _ident("READINGS_AGG", ""))
+    with psycopg.connect(url, connect_timeout=5) as conn, conn.cursor() as cur:
+        cur.execute(sql, (bucket_s, range_s, device, channel))
+        return [{"time": t, "formula": f, "volts": v} for t, f, v in cur.fetchall()]
+
+
+def build_history(rows: List[Dict[str, Any]], formulas: Dict[str, Formula],
+                  bucket_s: Optional[int] = None) -> Dict[str, Any]:
+    """Points are [epoch_ms, volts, value]. With bucket_s, a gap longer than 3 buckets (the Pi was
+    offline) gets a null point so the chart breaks the line instead of joining across it."""
+    points: List[List[Any]] = []
+    unit, formula_name = "V", None
+    for r in rows:
+        ms = int(r["time"].timestamp() * 1000)
+        if bucket_s and points and ms - points[-1][0] > 3 * bucket_s * 1000:
+            points.append([points[-1][0] + bucket_s * 1000, None, None])
+        volts = r["volts"]
+        formula = formulas.get(r["formula"] or "")
+        if volts is None:
+            value = None
+        else:
+            value = formula(volts) if formula is not None else volts
+            if not math.isfinite(value):
+                value = None
+        if formula is not None:
+            unit, formula_name = formula.unit, r["formula"]
+        points.append([ms, volts, value])
+    return {"unit": unit, "formula": formula_name, "points": points}
+
+
+@app.get("/api/history")
+def history(device: str = Query(..., max_length=100), channel: int = Query(..., ge=0, le=3),
+            range: str = Query("10m")) -> Dict[str, Any]:  # noqa: A002 - public query parameter name
+    if range not in RANGES:
+        raise HTTPException(status_code=400, detail=f"range must be one of {', '.join(RANGES)}")
+    range_s = RANGES[range]
+    bucket_s = bucket_seconds(range_s)
+    try:
+        rows = fetch_history(range_s, bucket_s, device, channel)
+    except Exception as exc:  # noqa: BLE001
+        print(f"database error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        raise HTTPException(status_code=502, detail="database unavailable") from exc
+    out = build_history(rows, _formulas(), bucket_s)
+    return {"range": range, "bucket_s": bucket_s, "device": device, "channel": channel, **out}
+
+
+_PAGE_FILE = Path(__file__).parent / "index.html"
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return PAGE
-
-
-PAGE = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Voltmeter</title>
-<style>
- body{font-family:system-ui,sans-serif;background:#111;color:#eee;margin:0;padding:1.5rem}
- h1{font-size:1.1rem;font-weight:500;color:#aaa;margin:0 0 1rem}
- .dev{margin-bottom:2rem}.dev h2{font-size:1rem;color:#8ab4f8;margin:0 0 .5rem}
- .row{display:flex;gap:1rem;flex-wrap:wrap}
- .card{background:#1c1c1e;border-radius:12px;padding:1rem 1.25rem;min-width:200px}
- .card.stale{opacity:.45}
- .val{font-size:2.2rem;font-variant-numeric:tabular-nums}.unit{font-size:1rem;color:#aaa;margin-left:.3rem}
- .meta{font-size:.8rem;color:#888;margin-top:.4rem}
- #status{font-size:.8rem;color:#888;margin-top:1rem}
-</style></head><body>
-<h1>Voltmeter</h1><div id="out">Loading…</div><div id="status"></div>
-<script>
-function fmt(v){if(v===null)return"ERR";const a=Math.abs(v);
- return(a!==0&&(a<0.001||a>=1e6))?v.toExponential(3):v.toPrecision(5).replace(/\\.?0+$/,"")}
-async function tick(){
- const s=document.getElementById("status");
- try{
-  const r=await fetch("/api/latest",{cache:"no-store"});
-  if(!r.ok)throw new Error(r.status);
-  const d=await r.json();const out=document.getElementById("out");out.innerHTML="";
-  const names=Object.keys(d.devices);
-  if(!names.length)out.textContent="No readings in the last 24 hours.";
-  for(const n of names){
-   const dev=document.createElement("div");dev.className="dev";
-   dev.innerHTML="<h2></h2><div class=row></div>";dev.querySelector("h2").textContent=n;
-   for(const c of d.devices[n]){
-    const card=document.createElement("div");card.className="card"+(c.stale?" stale":"");
-    card.innerHTML="<div>Ch <span class=ch></span></div><div><span class=val></span><span class=unit></span></div><div class=meta></div>";
-    card.querySelector(".ch").textContent=c.channel;
-    card.querySelector(".val").textContent=fmt(c.value);
-    card.querySelector(".unit").textContent=c.unit||"";
-    card.querySelector(".meta").textContent=(c.formula||"")+" · "+(c.volts===null?"–":c.volts.toFixed(3)+" V")+" · "+(c.stale?"stale, ":"")+Math.round(c.age_s)+"s ago";
-    dev.querySelector(".row").appendChild(card);
-   }
-   out.appendChild(dev);
-  }
-  s.textContent="Updated "+new Date().toLocaleTimeString();
- }catch(e){s.textContent="Update failed ("+e.message+"); retrying…"}
-}
-tick();setInterval(tick,2000);
-</script></body></html>
-"""
+    return _PAGE_FILE.read_text(encoding="utf-8")
