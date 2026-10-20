@@ -5,64 +5,142 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VOLTMETER</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = { theme: { extend: { colors: {
-    paper: "#fff4d6", ink: "#000", yel: "#ffd23f", pnk: "#ff90e8", blu: "#7ac7ff", grn: "#7ae7a0", org: "#ff9248"
-  } } } };
-</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
-  body { background: #fff4d6; background-image: radial-gradient(#000 1.2px, transparent 1.2px); background-size: 22px 22px; }
-  .stale-hatch { background-image: repeating-linear-gradient(45deg, transparent 0 10px, rgba(0,0,0,.12) 10px 20px); }
-  .btn { transition: transform .08s, box-shadow .08s; box-shadow: 4px 4px 0 0 #000; }
-  .btn:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 0 #000; }
-  .btn:active, .btn.on { transform: translate(4px, 4px); box-shadow: 0 0 0 0 #000; }
-</</style>
+  /* ---- default: clean instrument panel ---- */
+  :root {
+    --bg:#0f1419; --bg2:#0f1419; --fg:#e6edf3; --muted:#8b98a5; --panel:#161c24; --line:#2a3441;
+    --bw:1px; --radius:10px; --shadow:none; --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --upper:none; --accent:#4cc2ff; --ok:#3ddc97; --bad:#ff6b6b; --btn:#1d2630; --btn-on:#4cc2ff; --btn-on-fg:#06121a;
+    --card-bg:var(--panel); --num:var(--cc); --chart-bg:#0f1419; --grid:rgba(255,255,255,.08); --axis:#8b98a5;
+    --tick:#e6edf3; --title:var(--fg); --badge-bg:#1d2630; --badge-fg:var(--fg); --weight:600;
+  }
+  body[data-theme="default"] .c0 { --cc:#4cc2ff } body[data-theme="default"] .c1 { --cc:#3ddc97 }
+  body[data-theme="default"] .c2 { --cc:#ffb454 } body[data-theme="default"] .c3 { --cc:#c792ea }
+
+  /* ---- /neon: neon brutalist ---- */
+  body[data-theme="neon"] {
+    --bg:#050505; --fg:#fff; --muted:rgba(255,255,255,.6); --panel:#050505; --line:#b6ff00; --bw:4px; --radius:0;
+    --shadow:8px 8px 0 0; --font:ui-monospace,Menlo,Consolas,monospace; --upper:uppercase; --accent:#ff2bd6;
+    --ok:#b6ff00; --bad:#ff2bd6; --btn:#050505; --btn-on:#ff2bd6; --btn-on-fg:#000; --chart-bg:#000; --grid:#333;
+    --axis:#fff; --tick:#fff; --title:#b6ff00; --badge-bg:#fff200; --badge-fg:#000; --weight:900;
+    background-image:linear-gradient(#111 1px,transparent 1px),linear-gradient(90deg,#111 1px,transparent 1px); background-size:32px 32px;
+  }
+  body[data-theme="neon"] .c0 { --cc:#b6ff00 } body[data-theme="neon"] .c1 { --cc:#00f0ff }
+  body[data-theme="neon"] .c2 { --cc:#ff2bd6 } body[data-theme="neon"] .c3 { --cc:#fff200 }
+
+  /* ---- /neo: neo brutalist ---- */
+  body[data-theme="neo"] {
+    --bg:#fff4d6; --fg:#000; --muted:rgba(0,0,0,.7); --panel:#fff; --line:#000; --bw:4px; --radius:0;
+    --shadow:8px 8px 0 0; --font:ui-sans-serif,system-ui,sans-serif; --upper:none; --accent:#ff90e8; --ok:#7ae7a0; --bad:#ff9248;
+    --btn:#fff; --btn-on:#7ac7ff; --btn-on-fg:#000; --card-bg:var(--cc); --num:#000; --chart-bg:#fff4d6;
+    --grid:rgba(0,0,0,.15); --axis:#000; --tick:#000; --title:#000; --badge-bg:#fff; --badge-fg:#000; --weight:800;
+    background-image:radial-gradient(#000 1.2px,transparent 1.2px); background-size:22px 22px;
+  }
+  body[data-theme="neo"] .c0 { --cc:#ffd23f } body[data-theme="neo"] .c1 { --cc:#7ac7ff }
+  body[data-theme="neo"] .c2 { --cc:#ff90e8 } body[data-theme="neo"] .c3 { --cc:#7ae7a0 }
+
+  /* ---- /nge: retrofuturist military ---- */
+  body[data-theme="nge"] {
+    --bg:#06080a; --fg:#ff8a1f; --muted:#a35d14; --panel:rgba(12,10,6,.92); --line:#ff6a00; --bw:2px; --radius:0;
+    --shadow:none; --font:"Courier New",ui-monospace,Menlo,monospace; --upper:uppercase; --accent:#ff6a00;
+    --ok:#39ff88; --bad:#ff2a2a; --btn:#0b0905; --btn-on:#ff6a00; --btn-on-fg:#000; --chart-bg:#000;
+    --grid:rgba(255,106,0,.18); --axis:#ff6a00; --tick:#ff8a1f; --title:#ff6a00; --badge-bg:#ff6a00; --badge-fg:#000; --weight:700;
+    background-image:repeating-linear-gradient(0deg,rgba(255,106,0,.05) 0 1px,transparent 1px 4px),
+      linear-gradient(rgba(255,106,0,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(255,106,0,.07) 1px,transparent 1px);
+    background-size:auto,48px 48px,48px 48px;
+  }
+  body[data-theme="nge"] .c0 { --cc:#ff8a1f } body[data-theme="nge"] .c1 { --cc:#39ff88 }
+  body[data-theme="nge"] .c2 { --cc:#4de1ff } body[data-theme="nge"] .c3 { --cc:#ff2a2a }
+  body[data-theme="nge"] .clip { clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px); }
+  body[data-theme="nge"] .card, body[data-theme="nge"] .panel { box-shadow:inset 0 0 24px rgba(255,106,0,.12); }
+  body[data-theme="nge"] .num { text-shadow:0 0 12px currentColor; }
+  body[data-theme="nge"] .title { letter-spacing:.25em; }
+
+  body { background-color:var(--bg); color:var(--fg); font-family:var(--font); text-transform:var(--upper); font-weight:var(--weight); }
+  .panel, .card, .head, .empty { background:var(--panel); border:var(--bw) solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow) var(--line); }
+  .card { background:var(--card-bg); border-color:var(--cc); box-shadow:var(--shadow) var(--cc); position:relative; }
+  body[data-theme="neo"] .card, body[data-theme="neo"] .panel, body[data-theme="neo"] .head, body[data-theme="neo"] .empty { border-color:#000; box-shadow:var(--shadow) #000; }
+  body[data-theme="neo"] .head { background:#ffd23f; }
+  body[data-theme="nge"] .head { border-left-width:10px; }
+  .title { color:var(--title); }
+  .num { color:var(--num); font-variant-numeric:tabular-nums; }
+  .muted { color:var(--muted); font-weight:500; text-transform:none; }
+  .badge { background:var(--badge-bg); color:var(--badge-fg); border:var(--bw) solid var(--line); border-radius:var(--radius); padding:1px 8px; font-size:.8rem; }
+  body[data-theme="neo"] .badge { border-color:#000; }
+  .status.ok { background:var(--ok); color:#000; } .status.bad { background:var(--bad); color:#000; }
+  .btn, .sel { background:var(--btn); color:var(--fg); border:var(--bw) solid var(--line); border-radius:var(--radius); padding:4px 12px; font:inherit; cursor:pointer; }
+  body[data-theme="neo"] .btn, body[data-theme="neo"] .sel { border-color:#000; color:#000; box-shadow:4px 4px 0 0 #000; transition:transform .08s, box-shadow .08s; }
+  body[data-theme="neo"] .sel { box-shadow:none; }
+  body[data-theme="neo"] .btn.on { transform:translate(4px,4px); box-shadow:none; }
+  body[data-theme="neon"] .btn { box-shadow:4px 4px 0 0 var(--line); color:var(--line); }
+  .btn.on { background:var(--btn-on); color:var(--btn-on-fg); }
+  body[data-theme="neon"] .btn.on { box-shadow:none; }
+  .chartbox { background:var(--chart-bg); border:var(--bw) solid var(--line); border-radius:var(--radius); }
+  body[data-theme="neo"] .chartbox { border-color:#000; }
+  .stale { opacity:.6; background-image:repeating-linear-gradient(45deg,transparent 0 10px,rgba(128,128,128,.18) 10px 20px); }
+  body[data-theme="nge"] .stale { opacity:1; border-color:var(--bad); animation:blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:.55; } }
+  .bar { height:8px; background:rgba(128,128,128,.25); border-radius:var(--radius); overflow:hidden; }
+  body[data-theme="neo"] .bar { border:2px solid #000; background:#fff; height:12px; }
+  .bar > i { display:block; height:100%; background:var(--cc); }
+  body[data-theme="neo"] .bar > i { background:#000; }
+  .ticks { display:flex; justify-content:space-between; font-size:.65rem; margin-top:2px; }
+</style>
 </head>
-<body class="min-h-screen text-black font-sans font-bold selection:bg-black selection:text-yel">
+<body data-theme="default" class="min-h-screen">
 <div class="max-w-6xl mx-auto p-4 sm:p-8">
 
-  <header class="flex flex-wrap items-center justify-between gap-4 mb-8 border-4 border-ink bg-yel p-4 shadow-[8px_8px_0_0_#000]">
-    <h1 class="text-4xl sm:text-6xl font-black tracking-tighter leading-none">Voltmeter<span class="bg-ink text-yel px-2 ml-2 -rotate-3 inline-block">LIVE</span></h1>
-    <div id="status" class="text-xs sm:text-sm font-black bg-white text-black px-3 py-1 border-4 border-ink shadow-[4px_4px_0_0_#000]">BOOTING</div>
+  <header class="head clip flex flex-wrap items-center justify-between gap-4 mb-8 p-4">
+    <h1 class="title text-3xl sm:text-5xl font-black tracking-tight leading-none"><span id="title">VOLTMETER</span></h1>
+    <div id="status" class="badge status bad font-black">BOOTING</div>
   </header>
 
   <section id="cards" class="grid gap-6 sm:grid-cols-2 mb-10"></section>
 
-  <section class="border-4 border-ink bg-white p-4 sm:p-6 shadow-[8px_8px_0_0_#000]">
+  <section class="panel clip p-4 sm:p-6">
     <div class="flex flex-wrap items-center gap-x-6 gap-y-4 mb-4">
-      <h2 class="text-2xl font-black mr-auto bg-pnk border-4 border-ink px-3 shadow-[4px_4px_0_0_#000]">HISTORY</h2>
-
+      <h2 class="title text-xl font-black mr-auto" id="hist-title">HISTORY</h2>
       <div class="flex flex-wrap gap-2" id="ranges" role="group" aria-label="Time range"></div>
     </div>
-    <div class="flex flex-wrap items-center gap-3 mb-4 text-sm font-bold">
-      <label class="flex items-center gap-2">DEVICE
-        <select id="device" class="bg-white border-4 border-ink text-black px-2 py-1"></select></label>
-      <label class="flex items-center gap-2">CHANNEL
-        <select id="channel" class="bg-white border-4 border-ink text-black px-2 py-1"></select></label>
-      <div class="flex" role="group" aria-label="Metric">
-        <button data-metric="value" class="metric btn border-4 border-ink bg-white px-3 py-1">VALUE</button>
-        <button data-metric="volts" class="metric btn border-4 border-ink bg-white px-3 py-1 -ml-1">VOLTS</button>
+    <div class="flex flex-wrap items-center gap-3 mb-4 text-sm">
+      <label class="flex items-center gap-2">DEVICE <select id="device" class="sel"></select></label>
+      <label class="flex items-center gap-2">CHANNEL <select id="channel" class="sel"></select></label>
+      <div class="flex gap-1" role="group" aria-label="Metric">
+        <button data-metric="value" class="metric btn">VALUE</button>
+        <button data-metric="volts" class="metric btn">VOLTS</button>
       </div>
-      <div class="flex" role="group" aria-label="Y scale">
-        <button data-scale="linear" class="scale btn border-4 border-ink bg-white px-3 py-1">LINEAR</button>
-        <button data-scale="logarithmic" class="scale btn border-4 border-ink bg-white px-3 py-1 -ml-1">LOG</button>
+      <div class="flex gap-1" role="group" aria-label="Y scale">
+        <button data-scale="linear" class="scale btn">LINEAR</button>
+        <button data-scale="logarithmic" class="scale btn">LOG</button>
       </div>
     </div>
-    <div class="border-4 border-ink bg-paper p-2 h-80 relative">
+    <div class="chartbox p-2 h-80 relative">
       <canvas id="chart"></canvas>
-      <div id="chart-msg" class="absolute inset-0 flex items-center justify-center text-black font-black text-xl pointer-events-none"></div>
+      <div id="chart-msg" class="absolute inset-0 flex items-center justify-center font-black text-xl pointer-events-none"></div>
     </div>
-    <div id="chart-meta" class="mt-3 text-xs font-semibold text-black/70"></div>
+    <div id="chart-meta" class="muted mt-3 text-xs"></div>
   </section>
 
-  <footer class="mt-10 text-xs font-black bg-ink text-yel inline-block px-2 py-1">DATA: TIGERDATA · FORMULAS APPLIED SERVER-SIDE FROM STORED VOLTS</footer>
+  <footer class="muted mt-10 text-xs" id="foot">Data: TigerData · formulas applied server-side from stored volts</footer>
 </div>
 
 <script>
 const RANGES = ["1m","5m","10m","30m","1h","6h","12h","24h"];
-const COLORS = ["#ffd23f", "#7ac7ff", "#ff90e8", "#7ae7a0"];
-const LINES = ["#000", "#1d4ed8", "#c026d3", "#15803d"];
+const THEME = document.body.dataset.theme;
+const T = {
+  default: { title: "VOLTMETER", live: "LIVE", off: "OFFLINE", stale: "STALE", hist: "HISTORY", none: "No readings in the last 24 hours" },
+  neon:    { title: "VOLTMETER_", live: "LIVE", off: "OFFLINE", stale: "STALE", hist: "HISTORY", none: "NO READINGS IN THE LAST 24 HOURS" },
+  neo:     { title: "Voltmeter", live: "LIVE", off: "OFFLINE", stale: "STALE", hist: "HISTORY", none: "No readings in the last 24 hours" },
+  nge:     { title: "MAGI-01 // VOLTMETER", live: "SYNC NOMINAL", off: "LINK SEVERED", stale: "WARNING: NO SIGNAL", hist: "SYNC LOG", none: "NO SIGNAL. AWAITING PILOT" }
+}[THEME] || {};
+const LINES = { default: ["#4cc2ff", "#3ddc97", "#ffb454", "#c792ea"], neon: ["#b6ff00", "#00f0ff", "#ff2bd6", "#fff200"],
+                neo: ["#000", "#1d4ed8", "#c026d3", "#15803d"], nge: ["#ff8a1f", "#39ff88", "#4de1ff", "#ff2a2a"] }[THEME];
+const css = n => getComputedStyle(document.body).getPropertyValue(n).trim();
+const VOLT_FULL_SCALE = 12; // the volts bar on each card spans 0..12 V
+document.getElementById("title").textContent = T.title;
+document.getElementById("hist-title").textContent = T.hist;
+document.title = "VOLTMETER";
 const state = Object.assign({ range: "10m", device: null, channel: 0, metric: "value", scale: "linear" },
                             JSON.parse(localStorage.getItem("vm-state") || "{}"));
 if (!RANGES.includes(state.range)) state.range = "10m";
@@ -82,7 +160,7 @@ function el(tag, cls, text) {
 function setStatus(text, ok) {
   const s = document.getElementById("status");
   s.textContent = text;
-  s.className = "text-xs sm:text-sm font-black px-3 py-1 border-4 border-ink shadow-[4px_4px_0_0_#000] " + (ok ? "bg-grn" : "bg-org");
+  s.className = "badge status font-black " + (ok ? "ok" : "bad");
 }
 
 /* ---------- live cards ---------- */
@@ -95,50 +173,44 @@ async function tickLatest() {
     devices = d.devices;
     renderCards();
     syncSelectors();
-    setStatus("LIVE " + new Date().toLocaleTimeString(), true);
+    setStatus(T.live + " " + new Date().toLocaleTimeString(), true);
   } catch (e) {
-    setStatus("OFFLINE (" + e.message + ")", false);
+    setStatus(T.off + " (" + e.message + ")", false);
   }
 }
 function renderCards() {
   const box = document.getElementById("cards");
   box.replaceChildren();
   const names = Object.keys(devices);
-  if (!names.length) { box.append(el("div", "border-4 border-ink bg-white p-6 text-xl font-black shadow-[8px_8px_0_0_#000]", "NO READINGS IN THE LAST 24 HOURS")); return; }
+  if (!names.length) { box.append(el("div", "empty clip p-6 text-xl font-black", T.none)); return; }
   for (const n of names) for (const c of devices[n]) {
-    const color = COLORS[c.channel % COLORS.length];
-    const card = el("article", "border-4 border-ink p-4 shadow-[8px_8px_0_0_#000] " + (c.stale ? "stale-hatch opacity-70" : ""));
-    card.style.backgroundColor = color;
-    const top = el("div", "flex justify-between items-start text-sm font-black");
-    top.append(el("span", "bg-white border-2 border-ink px-2", n + " / CH" + c.channel));
-    if (c.stale) top.append(el("span", "bg-org border-2 border-ink px-2", "STALE"));
+    const card = el("article", "card clip p-4 c" + (c.channel % 4) + (c.stale ? " stale" : ""));
+    const top = el("div", "flex justify-between items-start text-sm gap-2");
+    top.append(el("span", "badge", n + " / CH" + c.channel));
+    if (c.stale) top.append(el("span", "badge status bad", T.stale));
     const val = el("div", "mt-3 flex items-baseline gap-3 flex-wrap");
-    const num = el("span", "text-5xl sm:text-6xl font-black tabular-nums break-all", fmt(c.value));
-    val.append(num, el("span", "text-xl font-black", c.unit || ""));
-    const meta = el("div", "mt-3 text-xs font-semibold",
+    val.append(el("span", "num text-5xl sm:text-6xl font-black break-all", fmt(c.value)), el("span", "text-xl font-black", c.unit || ""));
+    const frac = c.volts === null ? 0 : Math.max(0, Math.min(1, c.volts / VOLT_FULL_SCALE));
+    const bar = el("div", "bar mt-4"), fill = el("i"); fill.style.width = (frac * 100) + "%"; bar.append(fill);
+    const ticks = el("div", "ticks muted"); for (const t of ["0", "3", "6", "9", "12 V"]) ticks.append(el("span", "", t));
+    const meta = el("div", "muted mt-2 text-xs",
       (c.formula || "") + " · " + (c.volts === null ? "–" : c.volts.toFixed(3) + " V") + " · " + Math.round(c.age_s) + "s ago");
-    card.append(top, val, meta);
+    card.append(top, val, bar, ticks, meta);
     box.append(card);
   }
 }
 
 /* ---------- controls ---------- */
 function styleToggle(sel, attr, active) {
-  document.querySelectorAll(sel).forEach(b => {
-    const on = b.dataset[attr] === active;
-    b.classList.toggle("on", on); b.classList.toggle("bg-blu", on); b.classList.toggle("bg-white", !on);
-  });
+  document.querySelectorAll(sel).forEach(b => b.classList.toggle("on", b.dataset[attr] === active));
 }
 function styleRanges() {
-  document.querySelectorAll("#ranges button").forEach(b => {
-    const on = b.dataset.range === state.range;
-    b.classList.toggle("on", on); b.classList.toggle("bg-pnk", on); b.classList.toggle("bg-white", !on);
-  });
+  document.querySelectorAll("#ranges button").forEach(b => b.classList.toggle("on", b.dataset.range === state.range));
 }
 function buildRanges() {
   const box = document.getElementById("ranges");
   for (const r of RANGES) {
-    const b = el("button", "btn border-4 border-ink bg-white px-3 py-1 font-black", r.toUpperCase());
+    const b = el("button", "btn", r.toUpperCase());
     b.dataset.range = r;
     b.onclick = () => { state.range = r; save(); styleRanges(); loadHistory(); };
     box.append(b);
@@ -189,6 +261,7 @@ function draw() {
   const useValue = state.metric === "value";
   const log = state.scale === "logarithmic";
   const color = LINES[state.channel % LINES.length];
+  const axis = css("--axis"), tick = css("--tick"), grid = css("--grid");
   let pts = history.points.map(p => ({ x: p[0], y: useValue ? p[2] : p[1] }));
   if (log) pts = pts.filter(p => p.y !== null && p.y > 0);
   const unit = useValue ? history.unit : "V";
@@ -198,17 +271,17 @@ function draw() {
     " · " + pts.length + " points, " + history.bucket_s + "s average per point" + (log ? " · non-positive values hidden on log scale" : "");
   const cfg = {
     type: "line",
-    data: { datasets: [{ data: pts, borderColor: color, backgroundColor: color, borderWidth: 4, pointRadius: pts.length < 60 ? 3 : 0,
+    data: { datasets: [{ data: pts, borderColor: color, backgroundColor: color, borderWidth: THEME === "default" ? 2 : 4, pointRadius: pts.length < 60 ? 3 : 0,
                           pointBackgroundColor: color, tension: 0, spanGaps: false }] },
     options: {
       animation: false, responsive: true, maintainAspectRatio: false, parsing: false,
-      plugins: { legend: { display: false }, tooltip: { displayColors: false, cornerRadius: 0, backgroundColor: "#000", titleColor: "#ffd23f", bodyColor: "#fff",
+      plugins: { legend: { display: false }, tooltip: { displayColors: false, cornerRadius: 0, backgroundColor: "#000", titleColor: color === "#000" ? "#ffd23f" : color, bodyColor: "#fff",
         callbacks: { title: i => new Date(i[0].parsed.x).toLocaleTimeString(), label: i => fmt(i.parsed.y) + " " + unit } } },
       scales: {
-        x: { type: "linear", ticks: { color: "#000", font: { weight: "bold" }, maxTicksLimit: 8, callback: v => new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: state.range === "1m" || state.range === "5m" ? "2-digit" : undefined }) },
-             grid: { color: "rgba(0,0,0,.15)" }, border: { color: "#000", width: 4 } },
-        y: { type: state.scale, title: { display: true, text: unit, color: "#000", font: { weight: "bold" } },
-             ticks: { color: "#000", font: { weight: "bold" }, callback: v => fmt(v) }, grid: { color: "rgba(0,0,0,.15)" }, border: { color: "#000", width: 4 } }
+        x: { type: "linear", ticks: { color: tick, maxTicksLimit: 8, callback: v => new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: state.range === "1m" || state.range === "5m" ? "2-digit" : undefined }) },
+             grid: { color: grid }, border: { color: axis, width: 2 } },
+        y: { type: state.scale, title: { display: true, text: unit, color: tick, font: { weight: "bold" } },
+             ticks: { color: tick, callback: v => fmt(v) }, grid: { color: grid }, border: { color: axis, width: 2 } }
       }
     }
   };

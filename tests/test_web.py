@@ -141,3 +141,11 @@ def test_web_copies_match_sources():
     pairs += [(f, root / "web/formulas" / f.name) for f in (root / "formulas").glob("*.txt")]
     for src, copy in pairs:
         assert copy.read_bytes() == src.read_bytes(), f"{copy} out of sync; copy it from {src}"
+
+
+def test_theme_routes():
+    client = TestClient(webapp.app)
+    for path, theme in [("/", "default"), ("/neon", "neon"), ("/neo", "neo"), ("/nge", "nge")]:
+        r = client.get(path)
+        assert r.status_code == 200
+        assert f'<body data-theme="{theme}"' in r.text

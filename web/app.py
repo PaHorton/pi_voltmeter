@@ -182,6 +182,28 @@ def history(device: str = Query(..., max_length=100), channel: int = Query(..., 
 _PAGE_FILE = Path(__file__).parent / "index.html"
 
 
+THEMES = ("default", "neon", "neo", "nge")
+
+
+def _page(theme: str) -> str:
+    return _PAGE_FILE.read_text(encoding="utf-8").replace('<body data-theme="default"', f'<body data-theme="{theme}"', 1)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return _PAGE_FILE.read_text(encoding="utf-8")
+    return _page("default")
+
+
+@app.get("/neon", response_class=HTMLResponse)
+def neon() -> str:
+    return _page("neon")
+
+
+@app.get("/neo", response_class=HTMLResponse)
+def neo() -> str:
+    return _page("neo")
+
+
+@app.get("/nge", response_class=HTMLResponse)
+def nge() -> str:
+    return _page("nge")
