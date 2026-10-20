@@ -7,11 +7,11 @@ device:
     bus: 1                 # I2C bus number
     address: 0x48
     ch0_divider:           # resistor divider ahead of the ADC input: signal -- r_top -- ADC -- r_bottom -- GND
-      r_top: 0             # 0 = no divider; any unit (ohms or kohms), only the ratio matters
-      r_bottom: 1
+      r_top: 7             # 0 = no divider; any unit (ohms or kohms), only the ratio matters
+      r_bottom: 3
     ch1_divider:
-      r_top: 0
-      r_bottom: 1
+      r_top: 7
+      r_bottom: 3
   display:                 # SSD1306 128x64 OLED
     bus: 1
     address: 0x3C
