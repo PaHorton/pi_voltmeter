@@ -182,11 +182,13 @@ def history(device: str = Query(..., max_length=100), channel: int = Query(..., 
 _PAGE_FILE = Path(__file__).parent / "index.html"
 
 
-THEMES = ("default", "neon", "neo", "nge")
+THEMES = ("default", "neon", "neo", "nge", "98")
+_CSS_98 = '<link rel="stylesheet" href="https://unpkg.com/98.css">'
 
 
 def _page(theme: str) -> str:
-    return _PAGE_FILE.read_text(encoding="utf-8").replace('<body data-theme="default"', f'<body data-theme="{theme}"', 1)
+    html = _PAGE_FILE.read_text(encoding="utf-8").replace('<body data-theme="default"', f'<body data-theme="{theme}"', 1)
+    return html.replace("</head>", _CSS_98 + "\n</head>", 1) if theme == "98" else html
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -207,3 +209,8 @@ def neo() -> str:
 @app.get("/nge", response_class=HTMLResponse)
 def nge() -> str:
     return _page("nge")
+
+
+@app.get("/98", response_class=HTMLResponse)
+def win98() -> str:
+    return _page("98")

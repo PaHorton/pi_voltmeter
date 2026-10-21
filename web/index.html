@@ -7,6 +7,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
+  .tb { display:none; }
   /* ---- default: clean instrument panel ---- */
   :root {
     --bg:#0f1419; --bg2:#0f1419; --fg:#e6edf3; --muted:#8b98a5; --panel:#161c24; --line:#2a3441;
@@ -57,6 +58,37 @@
   body[data-theme="nge"] .num { text-shadow:0 0 12px currentColor; }
   body[data-theme="nge"] .title { letter-spacing:.25em; }
 
+
+  /* ---- /98: Windows 98 (98.css is injected by the server for this route only) ---- */
+  body[data-theme="98"] {
+    --bg:#008080; --fg:#222; --muted:#404040; --panel:#c0c0c0; --font:Arial,"Helvetica Neue",sans-serif; --upper:none; --weight:400;
+    --bw:0px; --radius:0; --shadow:none; --title:#222; --chart-bg:#fff; --grid:#d0d0d0; --axis:#000; --tick:#000;
+    background-image:none; font-size:13px;
+  }
+  body[data-theme="98"] .c0, body[data-theme="98"] .c1, body[data-theme="98"] .c2, body[data-theme="98"] .c3 { --cc:#000080; }
+  body[data-theme="98"] .head, body[data-theme="98"] .panel, body[data-theme="98"] .card, body[data-theme="98"] .empty {
+    background:#c0c0c0; border:none; padding:0 !important; clip-path:none;
+    box-shadow:var(--border-window-outer), var(--border-window-inner); }
+  body[data-theme="98"] .head { margin-bottom:1.5rem; }
+  body[data-theme="98"] .window-body { padding:8px; margin:0; }
+  body[data-theme="98"] .title-bar { margin:2px; }
+  body[data-theme="98"] .title, body[data-theme="98"] h1, body[data-theme="98"] h2 { color:#222; font-size:1.1rem; letter-spacing:0; font-weight:700; }
+  body[data-theme="98"] .num { background:#000; color:#39ff14; font-family:"Courier New",monospace; padding:2px 10px; display:inline-block;
+    box-shadow:var(--border-field); font-weight:700; }
+  body[data-theme="98"] .muted { color:#404040; }
+  body[data-theme="98"] .badge { background:#c0c0c0; color:#222; border:none; padding:2px 8px; box-shadow:var(--border-field); }
+  body[data-theme="98"] .status.ok { color:#006400; } body[data-theme="98"] .status.bad { color:#a00000; }
+  body[data-theme="98"] .btn { background:#c0c0c0; color:#222; border:none; border-radius:0; min-height:23px; padding:0 12px; font:inherit;
+    box-shadow:var(--border-raised-outer), var(--border-raised-inner); }
+  body[data-theme="98"] .btn.on { background:#c0c0c0; color:#222; font-weight:700;
+    box-shadow:var(--border-sunken-outer), var(--border-sunken-inner); }
+  body[data-theme="98"] .sel { background:#fff; color:#222; border:none; border-radius:0; padding:3px 4px; font:inherit;
+    box-shadow:var(--border-field); }
+  body[data-theme="98"] .chartbox { border:none; background:#fff; box-shadow:var(--border-field); }
+  body[data-theme="98"] .stale { opacity:1; background-image:none; }
+  body[data-theme="98"] .progress-indicator { margin-top:12px; }
+  body[data-theme="98"] #foot { color:#fff; }
+
   body { background-color:var(--bg); color:var(--fg); font-family:var(--font); text-transform:var(--upper); font-weight:var(--weight); }
   .panel, .card, .head, .empty { background:var(--panel); border:var(--bw) solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow) var(--line); }
   .card { background:var(--card-bg); border-color:var(--cc); box-shadow:var(--shadow) var(--cc); position:relative; }
@@ -69,7 +101,7 @@
   .badge { background:var(--badge-bg); color:var(--badge-fg); border:var(--bw) solid var(--line); border-radius:var(--radius); padding:1px 8px; font-size:.8rem; }
   body[data-theme="neo"] .badge { border-color:#000; }
   .status.ok { background:var(--ok); color:#000; } .status.bad { background:var(--bad); color:#000; }
-  .btn, .sel { background:var(--btn); color:var(--fg); border:var(--bw) solid var(--line); border-radius:var(--radius); padding:4px 12px; font:inherit; cursor:pointer; }
+  body:where(:not([data-theme="98"])) :is(.btn, .sel) { background:var(--btn); color:var(--fg); border:var(--bw) solid var(--line); border-radius:var(--radius); padding:4px 12px; font:inherit; cursor:pointer; }
   body[data-theme="neo"] .btn, body[data-theme="neo"] .sel { border-color:#000; color:#000; box-shadow:4px 4px 0 0 #000; transition:transform .08s, box-shadow .08s; }
   body[data-theme="neo"] .sel { box-shadow:none; }
   body[data-theme="neo"] .btn.on { transform:translate(4px,4px); box-shadow:none; }
@@ -132,12 +164,24 @@ const T = {
   default: { title: "VOLTMETER", live: "LIVE", off: "OFFLINE", stale: "STALE", hist: "HISTORY", none: "No readings in the last 24 hours" },
   neon:    { title: "VOLTMETER_", live: "LIVE", off: "OFFLINE", stale: "STALE", hist: "HISTORY", none: "NO READINGS IN THE LAST 24 HOURS" },
   neo:     { title: "Voltmeter", live: "LIVE", off: "OFFLINE", stale: "STALE", hist: "HISTORY", none: "No readings in the last 24 hours" },
+  "98":    { title: "Voltmeter", live: "Connected", off: "Disconnected", stale: "Not responding", hist: "History", none: "No readings in the last 24 hours." },
   nge:     { title: "MAGI-01 // VOLTMETER", live: "SYNC NOMINAL", off: "LINK SEVERED", stale: "WARNING: NO SIGNAL", hist: "SYNC LOG", none: "NO SIGNAL. AWAITING PILOT" }
 }[THEME] || {};
 const LINES = { default: ["#4cc2ff", "#3ddc97", "#ffb454", "#c792ea"], neon: ["#b6ff00", "#00f0ff", "#ff2bd6", "#fff200"],
-                neo: ["#000", "#1d4ed8", "#c026d3", "#15803d"], nge: ["#ff8a1f", "#39ff88", "#4de1ff", "#ff2a2a"] }[THEME];
+                neo: ["#000", "#1d4ed8", "#c026d3", "#15803d"], "98": ["#000080", "#008000", "#800000", "#800080"], nge: ["#ff8a1f", "#39ff88", "#4de1ff", "#ff2a2a"] }[THEME];
 const css = n => getComputedStyle(document.body).getPropertyValue(n).trim();
 const VOLT_FULL_SCALE = 12; // the volts bar on each card spans 0..12 V
+function chrome(text, closable) {
+  const bar = el("div", "title-bar"), t = el("div", "title-bar-text", text), c = el("div", "title-bar-controls");
+  for (const l of ["Minimize", "Maximize", "Close"]) { const b = el("button"); b.setAttribute("aria-label", l); c.append(b); }
+  bar.append(t, c);
+  return bar;
+}
+function windowize(node, text) {
+  const body = el("div", "window-body");
+  body.append(...node.childNodes);
+  node.append(chrome(text), body);
+}
 document.getElementById("title").textContent = T.title;
 document.getElementById("hist-title").textContent = T.hist;
 document.title = "VOLTMETER";
@@ -185,17 +229,26 @@ function renderCards() {
   if (!names.length) { box.append(el("div", "empty clip p-6 text-xl font-black", T.none)); return; }
   for (const n of names) for (const c of devices[n]) {
     const card = el("article", "card clip p-4 c" + (c.channel % 4) + (c.stale ? " stale" : ""));
+    const win = THEME === "98";
     const top = el("div", "flex justify-between items-start text-sm gap-2");
     top.append(el("span", "badge", n + " / CH" + c.channel));
     if (c.stale) top.append(el("span", "badge status bad", T.stale));
     const val = el("div", "mt-3 flex items-baseline gap-3 flex-wrap");
     val.append(el("span", "num text-5xl sm:text-6xl font-black break-all", fmt(c.value)), el("span", "text-xl font-black", c.unit || ""));
     const frac = c.volts === null ? 0 : Math.max(0, Math.min(1, c.volts / VOLT_FULL_SCALE));
-    const bar = el("div", "bar mt-4"), fill = el("i"); fill.style.width = (frac * 100) + "%"; bar.append(fill);
+    let bar;
+    if (win) {
+      bar = el("div", "progress-indicator segmented"); const pb = el("span", "progress-indicator-bar"); pb.style.width = (frac * 100) + "%"; bar.append(pb);
+    } else {
+      bar = el("div", "bar mt-4"); const fill = el("i"); fill.style.width = (frac * 100) + "%"; bar.append(fill);
+    }
     const ticks = el("div", "ticks muted"); for (const t of ["0", "3", "6", "9", "12 V"]) ticks.append(el("span", "", t));
     const meta = el("div", "muted mt-2 text-xs",
       (c.formula || "") + " · " + (c.volts === null ? "–" : c.volts.toFixed(3) + " V") + " · " + Math.round(c.age_s) + "s ago");
-    card.append(top, val, bar, ticks, meta);
+    if (win) {
+      const body = el("div", "window-body"); body.append(top, val, bar, ticks, meta);
+      card.append(chrome(n + " - CH" + c.channel), body);
+    } else card.append(top, val, bar, ticks, meta);
     box.append(card);
   }
 }
@@ -289,6 +342,10 @@ function draw() {
   chart = new Chart(document.getElementById("chart"), cfg);
 }
 
+if (THEME === "98") {
+  windowize(document.querySelector(".head"), "Voltmeter.exe");
+  windowize(document.querySelector("section.panel"), "History - Sync Log");
+}
 buildRanges();
 tickLatest();
 setInterval(tickLatest, 2000);

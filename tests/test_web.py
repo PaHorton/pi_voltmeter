@@ -145,7 +145,13 @@ def test_web_copies_match_sources():
 
 def test_theme_routes():
     client = TestClient(webapp.app)
-    for path, theme in [("/", "default"), ("/neon", "neon"), ("/neo", "neo"), ("/nge", "nge")]:
+    for path, theme in [("/", "default"), ("/neon", "neon"), ("/neo", "neo"), ("/nge", "nge"), ("/98", "98")]:
         r = client.get(path)
         assert r.status_code == 200
         assert f'<body data-theme="{theme}"' in r.text
+
+
+def test_98css_only_on_98_route():
+    client = TestClient(webapp.app)
+    assert "unpkg.com/98.css" in client.get("/98").text
+    assert "unpkg.com/98.css" not in client.get("/").text

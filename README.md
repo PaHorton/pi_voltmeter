@@ -90,7 +90,7 @@ stored formula name to its `volts` using the same `formulas/*.txt` and parser as
    after editing the originals run `cp voltmeter/formulas.py web/voltmeter/ && cp formulas/*.txt web/formulas/`
    (a test fails if they drift). GitHub Actions (`.github/workflows/ci.yml`) runs the tests.
 
-Themes: `/` is a clean instrument-panel look; `/neon`, `/neo` (neo-brutalist) and `/nge` (retrofuturist military) are easter eggs.
+Themes: `/` is a clean instrument-panel look; `/neon`, `/neo` (neo-brutalist) and `/nge` (retrofuturist military) and `/98` (Windows 98 via 98.css) are easter eggs.
 The page has a history graph (1m to 24h, per device/channel, value or volts, linear or log).
 Channels older than `STALE_AFTER_S` (30 s) are dimmed and marked stale. If a row names a formula
 that is not in `formulas/`, the page falls back to showing volts.
