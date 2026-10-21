@@ -32,14 +32,14 @@
 
   /* ---- /neo: neo brutalist ---- */
   body[data-theme="neo"] {
-    --bg:#fff4d6; --fg:#000; --muted:rgba(0,0,0,.7); --panel:#fff; --line:#000; --bw:4px; --radius:0;
-    --shadow:8px 8px 0 0; --font:ui-sans-serif,system-ui,sans-serif; --upper:none; --accent:#ff90e8; --ok:#7ae7a0; --bad:#ff9248;
-    --btn:#fff; --btn-on:#7ac7ff; --btn-on-fg:#000; --card-bg:var(--cc); --num:#000; --chart-bg:#fff4d6;
+    --bg:#e6e3dc; --fg:#000; --muted:rgba(0,0,0,.7); --panel:#fff; --line:#000; --bw:4px; --radius:0;
+    --shadow:8px 8px 0 0; --font:ui-sans-serif,system-ui,sans-serif; --upper:none; --accent:#2f79b5; --ok:#a6e22e; --bad:#e63946;
+    --btn:#fff; --btn-on:#a6e22e; --btn-on-fg:#000; --card-bg:var(--cc); --num:#000; --chart-bg:#f4f2ec;
     --grid:rgba(0,0,0,.15); --axis:#000; --tick:#000; --title:#000; --badge-bg:#fff; --badge-fg:#000; --weight:800;
     background-image:radial-gradient(#000 1.2px,transparent 1.2px); background-size:22px 22px;
   }
-  body[data-theme="neo"] .c0 { --cc:#ffd23f } body[data-theme="neo"] .c1 { --cc:#7ac7ff }
-  body[data-theme="neo"] .c2 { --cc:#ff90e8 } body[data-theme="neo"] .c3 { --cc:#7ae7a0 }
+  body[data-theme="neo"] .c0 { --cc:#a6e22e } body[data-theme="neo"] .c1 { --cc:#4a95cf }
+  body[data-theme="neo"] .c2 { --cc:#f5b301 } body[data-theme="neo"] .c3 { --cc:#c3c8ce }
 
   /* ---- /nge: retrofuturist military ---- */
   body[data-theme="nge"] {
@@ -93,7 +93,9 @@
   .panel, .card, .head, .empty { background:var(--panel); border:var(--bw) solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow) var(--line); }
   .card { background:var(--card-bg); border-color:var(--cc); box-shadow:var(--shadow) var(--cc); position:relative; }
   body[data-theme="neo"] .card, body[data-theme="neo"] .panel, body[data-theme="neo"] .head, body[data-theme="neo"] .empty { border-color:#000; box-shadow:var(--shadow) #000; }
-  body[data-theme="neo"] .head { background:#ffd23f; }
+  body[data-theme="neo"] .head { background:#a6e22e; }
+  body[data-theme="neo"] .title { text-shadow:2px 2px 0 #4a95cf; }
+  body[data-theme="neo"] .btn.on { background:#4a95cf; }
   body[data-theme="nge"] .head { border-left-width:10px; }
   .title { color:var(--title); }
   .num { color:var(--num); font-variant-numeric:tabular-nums; }
@@ -168,7 +170,7 @@ const T = {
   nge:     { title: "MAGI-01 // VOLTMETER", live: "SYNC NOMINAL", off: "LINK SEVERED", stale: "WARNING: NO SIGNAL", hist: "SYNC LOG", none: "NO SIGNAL. AWAITING PILOT" }
 }[THEME] || {};
 const LINES = { default: ["#4cc2ff", "#3ddc97", "#ffb454", "#c792ea"], neon: ["#b6ff00", "#00f0ff", "#ff2bd6", "#fff200"],
-                neo: ["#000", "#1d4ed8", "#c026d3", "#15803d"], "98": ["#000080", "#008000", "#800000", "#800080"], nge: ["#ff8a1f", "#39ff88", "#4de1ff", "#ff2a2a"] }[THEME];
+                neo: ["#2f6f00", "#1f5f99", "#b45309", "#c1121f"], "98": ["#000080", "#008000", "#800000", "#800080"], nge: ["#ff8a1f", "#39ff88", "#4de1ff", "#ff2a2a"] }[THEME];
 const css = n => getComputedStyle(document.body).getPropertyValue(n).trim();
 const VOLT_FULL_SCALE = 12; // the volts bar on each card spans 0..12 V
 function chrome(text, closable) {
