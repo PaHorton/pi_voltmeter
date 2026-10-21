@@ -51,6 +51,8 @@ def _table() -> str:
 
 def fetch_latest() -> List[Dict[str, Any]]:
     """Latest row per (device, channel) from the last 24 h (TimescaleDB ``last()``)."""
+    if DEMO:
+        return demo_latest()
     import psycopg
 
     url = os.environ.get("DATABASE_URL")
@@ -64,6 +66,31 @@ def fetch_latest() -> List[Dict[str, Any]]:
         cur.execute(sql)
         cols = [c.name for c in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+
+DEMO = os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")
+DEMO_DEVICE = "demo-cryo"
+# channel -> (formula name, baseline volts, slow swing, fast ripple)
+_DEMO_CHANNELS = {0: ("pressure_torr", 5.2, 0.8, 0.03), 1: ("lm35", 0.30, 0.04, 0.004)}
+
+
+def _demo_volts(channel: int, t: float) -> float:
+    _, base, swing, ripple = _DEMO_CHANNELS[channel]
+    return base + swing * math.sin(t / 900 + channel) + ripple * math.sin(t / 7 + 3 * channel)
+
+
+def demo_latest() -> List[Dict[str, Any]]:
+    now = datetime.now(timezone.utc)
+    return [{"device_id": DEMO_DEVICE, "channel": ch, "time": now, "volts": _demo_volts(ch, now.timestamp()),
+             "unit": "", "formula": _DEMO_CHANNELS[ch][0]} for ch in _DEMO_CHANNELS]
+
+
+def demo_history(range_s: int, bucket_s: int, device: str, channel: int) -> List[Dict[str, Any]]:
+    if device != DEMO_DEVICE or channel not in _DEMO_CHANNELS:
+        return []
+    end = int(datetime.now(timezone.utc).timestamp()) // bucket_s * bucket_s
+    return [{"time": datetime.fromtimestamp(t, timezone.utc), "formula": _DEMO_CHANNELS[channel][0],
+             "volts": _demo_volts(channel, t)} for t in range(end - range_s, end + 1, bucket_s)]
 
 
 def build_payload(rows: List[Dict[str, Any]], formulas: Dict[str, Formula],
@@ -88,7 +115,7 @@ def build_payload(rows: List[Dict[str, Any]], formulas: Dict[str, Formula],
             "time": r["time"].isoformat(), "age_s": round(age, 1), "stale": age > stale_after_s})
     for chans in devices.values():
         chans.sort(key=lambda c: c["channel"])
-    return {"now": now.isoformat(), "devices": devices}
+    return {"now": now.isoformat(), "devices": devices, "demo": DEMO}
 
 
 @app.get("/api/latest")
@@ -128,6 +155,8 @@ def history_sql(range_s: int, agg: str = "") -> str:
 
 
 def fetch_history(range_s: int, bucket_s: int, device: str, channel: int) -> List[Dict[str, Any]]:
+    if DEMO:
+        return demo_history(range_s, bucket_s, device, channel)
     import psycopg
 
     url = os.environ.get("DATABASE_URL")

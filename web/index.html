@@ -217,6 +217,7 @@ async function tickLatest() {
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
     devices = d.devices;
+    if (d.demo) document.getElementById("foot").textContent = "DEMO DATA: SIMULATED READINGS, NOT A LIVE DEVICE";
     renderCards();
     syncSelectors();
     setStatus(T.live + " " + new Date().toLocaleTimeString(), true);

@@ -90,6 +90,7 @@ stored formula name to its `volts` using the same `formulas/*.txt` and parser as
    after editing the originals run `cp voltmeter/formulas.py web/voltmeter/ && cp formulas/*.txt web/formulas/`
    (a test fails if they drift). GitHub Actions (`.github/workflows/ci.yml`) runs the tests.
 
+**Public demo:** deploy a second Vercel project from the same repo (Root Directory `web`) with only `DEMO_MODE=1` set and no `DATABASE_URL`. It serves simulated `demo-cryo` readings and cannot reach your database.
 Themes: `/` is a clean instrument-panel look; `/neon`, `/neo` (neo-brutalist) and `/nge` (retrofuturist military) and `/98` (Windows 98 via 98.css) are easter eggs.
 The page has a history graph (1m to 24h, per device/channel, value or volts, linear or log).
 Channels older than `STALE_AFTER_S` (30 s) are dimmed and marked stale. If a row names a formula

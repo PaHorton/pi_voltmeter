@@ -155,3 +155,16 @@ def test_98css_only_on_98_route():
     client = TestClient(webapp.app)
     assert "unpkg.com/98.css" in client.get("/98").text
     assert "unpkg.com/98.css" not in client.get("/").text
+
+
+def test_demo_mode(monkeypatch):
+    monkeypatch.setattr(webapp, "DEMO", True)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    client = TestClient(webapp.app)
+    d = client.get("/api/latest").json()
+    assert d["demo"] is True
+    chans = d["devices"]["demo-cryo"]
+    assert [c["channel"] for c in chans] == [0, 1] and all(c["value"] is not None and not c["stale"] for c in chans)
+    h = client.get("/api/history", params={"device": "demo-cryo", "channel": 0, "range": "1h"}).json()
+    assert len(h["points"]) > 100 and h["unit"] == "Torr"
+    assert client.get("/api/history", params={"device": "other", "channel": 0, "range": "1h"}).json()["points"] == []
