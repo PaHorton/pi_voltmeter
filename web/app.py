@@ -140,18 +140,56 @@ def bucket_seconds(range_s: int) -> int:
 AGG_MIN_RANGE_S = 6 * 3600  # shorter ranges read raw rows; longer ones use the 1-minute aggregate
 
 
-def history_sql(range_s: int, agg: str = "") -> str:
-    """Bucketed average volts (per formula name, so a formula change mid-range stays correct)."""
-    if agg and range_s >= AGG_MIN_RANGE_S:
-        # re-average the 1-minute buckets, weighted by their row counts
-        return (f"SELECT time_bucket(make_interval(secs => %s), bucket) AS t, formula, "
-                f"sum(volts * n) / sum(n) AS volts FROM {agg} "
-                f"WHERE bucket > now() - make_interval(secs => %s) AND device_id = %s AND channel = %s "
-                f"GROUP BY 1, 2 ORDER BY 1")
-    return (f"SELECT time_bucket(make_interval(secs => %s), time) AS t, formula, avg(volts) AS volts "
-            f"FROM {_table()} "
-            f"WHERE time > now() - make_interval(secs => %s) AND device_id = %s AND channel = %s "
-            f"GROUP BY 1, 2 ORDER BY 1")
+def _case(formulas: Optional[Dict[str, Formula]], column: str = "volts") -> str:
+    """SQL expression converting ``column`` per row with that row's formula (NULL if untranslatable)."""
+    arms = []
+    for name, f in (formulas or {}).items():
+        expr = f.sql(column)
+        if expr:
+            lit = "'" + name.replace("'", "''").replace("%", "%%") + "'"
+            arms.append(f"WHEN {lit} THEN {expr}")
+    return f"CASE formula {' '.join(arms)} END" if arms else "NULL::float8"
+
+
+def is_affine(f: Formula) -> bool:
+    """True if f(V) = a*V + b, so averaging volts then converting equals averaging the converted values."""
+    ys = [f(v) for v in (0.0, 1.0, 2.0, 3.5)]
+    if not all(math.isfinite(y) for y in ys):
+        return False
+    slope = ys[1] - ys[0]
+    return all(abs(y - (ys[0] + slope * v)) <= 1e-9 * (1 + abs(y)) for y, v in zip(ys, (0.0, 1.0, 2.0, 3.5)))
+
+
+def _names(names: List[str]) -> str:
+    return ", ".join("'" + n.replace("'", "''").replace("%", "%%") + "'" for n in names) or "NULL"
+
+
+def history_sql(range_s: int, agg: str = "", formulas: Optional[Dict[str, Formula]] = None) -> str:
+    """Bucketed averages per formula name: ``volts`` (mean volts) and ``value`` (mean of the converted
+    values: the formula is applied in SQL to each row *before* averaging, so a non-linear formula such
+    as 10**x is not reduced to a geometric mean).
+
+    The 1-minute aggregate only stores mean volts, so for ranges of 6 h or more it serves just the
+    formulas that are linear in V (exact); every other formula still reads raw rows.
+    """
+    conv = _case(formulas)
+    raw = (f"SELECT time_bucket(make_interval(secs => %s), time) AS t, formula, avg(volts) AS volts, "
+           f"avg({conv}) AS value FROM {_table()} "
+           f"WHERE time > now() - make_interval(secs => %s) AND device_id = %s AND channel = %s")
+    if not (agg and range_s >= AGG_MIN_RANGE_S):
+        return raw + " GROUP BY 1, 2 ORDER BY 1"
+    linear = [n for n, f in formulas.items() if f.sql() and is_affine(f)] if formulas is not None else None
+    rolled = (f"SELECT time_bucket(make_interval(secs => %s), bucket) AS t, formula, "
+              f"sum(volts * n) / sum(n) AS volts, "
+              f"sum(v * n) / NULLIF(sum(n) FILTER (WHERE v IS NOT NULL), 0) AS value FROM ("
+              f"SELECT bucket, formula, volts, n, {conv} AS v FROM {agg} "
+              f"WHERE bucket > now() - make_interval(secs => %s) AND device_id = %s AND channel = %s")
+    if linear is None:  # no formula information: aggregate for everything
+        return rolled + ") s GROUP BY 1, 2 ORDER BY 1"
+    if not linear:
+        return raw + " GROUP BY 1, 2 ORDER BY 1"
+    return (f"({rolled} AND formula IN ({_names(linear)})) s GROUP BY 1, 2) UNION ALL "
+            f"({raw} AND formula NOT IN ({_names(linear)}) GROUP BY 1, 2) ORDER BY 1")
 
 
 def fetch_history(range_s: int, bucket_s: int, device: str, channel: int) -> List[Dict[str, Any]]:
@@ -162,10 +200,18 @@ def fetch_history(range_s: int, bucket_s: int, device: str, channel: int) -> Lis
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
-    sql = history_sql(range_s, _ident("READINGS_AGG", ""))
+    formulas = _formulas()
+    sql = history_sql(range_s, _ident("READINGS_AGG", ""), formulas)
     with psycopg.connect(url, connect_timeout=5) as conn, conn.cursor() as cur:
-        cur.execute(sql, (bucket_s, range_s, device, channel))
-        return [{"time": t, "formula": f, "volts": v} for t, f, v in cur.fetchall()]
+        cur.execute(sql, (bucket_s, range_s, device, channel) * (len(re.findall(r"(?<!%)%s", sql)) // 4))
+        rows = []
+        for t, f, v, value in cur.fetchall():
+            row = {"time": t, "formula": f, "volts": v}
+            fm = formulas.get(f or "")
+            if fm is not None and fm.sql():  # converted in SQL; otherwise build_history converts the mean volts
+                row["value"] = value
+            rows.append(row)
+        return rows
 
 
 def build_history(rows: List[Dict[str, Any]], formulas: Dict[str, Formula],
@@ -180,12 +226,14 @@ def build_history(rows: List[Dict[str, Any]], formulas: Dict[str, Formula],
             points.append([points[-1][0] + bucket_s * 1000, None, None])
         volts = r["volts"]
         formula = formulas.get(r["formula"] or "")
-        if volts is None:
+        if "value" in r:  # already averaged in SQL
+            value = r["value"]
+        elif volts is None:
             value = None
         else:
             value = formula(volts) if formula is not None else volts
-            if not math.isfinite(value):
-                value = None
+        if value is not None and not math.isfinite(value):
+            value = None
         if formula is not None:
             unit, formula_name = formula.unit, r["formula"]
         points.append([ms, volts, value])

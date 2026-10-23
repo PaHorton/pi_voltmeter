@@ -92,6 +92,7 @@ stored formula name to its `volts` using the same `formulas/*.txt` and parser as
 
 **Public demo:** deploy a second Vercel project from the same repo (Root Directory `web`) with only `DEMO_MODE=1` set and no `DATABASE_URL`. It serves simulated `demo-cryo` readings and cannot reach your database.
 Themes: `/` is a clean instrument-panel look; `/neon`, `/neo` (neo-brutalist) and `/nge` (retrofuturist military) and `/98` (Windows 98 via 98.css) are easter eggs.
+Graph values are the average of each time bucket's *converted* readings: formulas are translated to SQL and applied to every row before averaging, so a non-linear formula (e.g. the pressure one) is not reduced to a geometric mean. The `readings_1m` aggregate stores mean volts, so ranges of 6 h or more use it only for formulas that are linear in V; other formulas read raw rows. Formulas that can't be translated to SQL (`%`, `//`, two-argument `log`) fall back to converting the mean volts.
 The page has a history graph (1m to 24h, per device/channel, value or volts, linear or log).
 Channels older than `STALE_AFTER_S` (30 s) are dimmed and marked stale. If a row names a formula
 that is not in `formulas/`, the page falls back to showing volts.

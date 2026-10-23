@@ -168,3 +168,49 @@ def test_demo_mode(monkeypatch):
     h = client.get("/api/history", params={"device": "demo-cryo", "channel": 0, "range": "1h"}).json()
     assert len(h["points"]) > 100 and h["unit"] == "Torr"
     assert client.get("/api/history", params={"device": "other", "channel": 0, "range": "1h"}).json()["points"] == []
+
+
+def _pressure_formulas():
+    return webapp.load_formulas(webapp.ROOT / "formulas")
+
+
+def test_formulas_translate_to_sql():
+    f = _pressure_formulas()
+    assert f["lm35"].sql() == "(volts * (100.0)::float8)"
+    assert "power(" in f["pressure_torr"].sql() and "volts" in f["pressure_torr"].sql()
+    assert webapp.Formula.parse("m", "x\nV % 2").sql() is None
+    assert webapp.Formula.parse("l", "x\nlog(V, 2)").sql() is None
+    guarded = webapp.Formula.parse("s", "x\nsqrt(V) + 1 / V").sql()
+    assert "CASE WHEN" in guarded and "NULLIF(volts, 0)" in guarded
+
+
+def test_affine_detection():
+    f = _pressure_formulas()
+    assert webapp.is_affine(f["lm35"]) and webapp.is_affine(f["Raw"])
+    assert not webapp.is_affine(f["pressure_torr"])
+
+
+def test_history_sql_applies_formula_before_averaging():
+    f = _pressure_formulas()
+    short = webapp.history_sql(3600, "readings_1m", f)
+    assert "avg(CASE formula" in short and "power(" in short and "UNION" not in short
+    long = webapp.history_sql(86400, "readings_1m", f)
+    # linear formulas come from the aggregate, non-linear ones (pressure) from raw rows
+    assert "UNION ALL" in long and "FROM readings_1m" in long
+    in_list = long.split("formula IN (", 1)[1].split(")", 1)[0]
+    not_in_list = long.split("formula NOT IN (", 1)[1].split(")", 1)[0]
+    assert in_list == not_in_list and "'lm35'" in in_list and "pressure_torr" not in in_list
+    only_nonlinear = {"pressure_torr": f["pressure_torr"]}
+    assert "readings_1m" not in webapp.history_sql(86400, "readings_1m", only_nonlinear)
+
+
+def test_build_history_prefers_sql_average():
+    f = _pressure_formulas()
+    t = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # mean of the converted values (SQL) differs from the formula applied to the mean volts
+    rows = [{"time": t, "formula": "pressure_torr", "volts": 6.5, "value": 1.25}]
+    assert webapp.build_history(rows, f)["points"][0][2] == 1.25
+    del rows[0]["value"]
+    assert webapp.build_history(rows, f)["points"][0][2] == f["pressure_torr"](6.5)
+    rows[0]["value"] = float("nan")
+    assert webapp.build_history(rows, f)["points"][0][2] is None

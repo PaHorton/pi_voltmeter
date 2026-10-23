@@ -6,7 +6,7 @@ import logging
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
 
 log = logging.getLogger(__name__)
 
@@ -70,12 +70,87 @@ class Formula:
             raise FormulaError(f"bad expression: {exc.msg}") from exc
         return cls(name, unit, expr, code)
 
+    def sql(self, column: str = "volts") -> Optional[str]:
+        """The expression as a SQL float8 expression over ``column``, or None if it can't be translated.
+
+        Domain and overflow errors give NULL (like NaN here) instead of failing the query.
+        """
+        try:
+            return _to_sql(ast.parse(self.expression, mode="eval").body, column)
+        except FormulaError:
+            return None
+
     def __call__(self, volts: float) -> float:
         env = {"__builtins__": {}, **_FUNCS, **_CONSTS, "V": volts}
         try:
             return float(eval(self._code, env))  # noqa: S307 - AST is whitelisted
         except (ArithmeticError, ValueError, TypeError):
             return math.nan
+
+
+def _lit(value: float) -> str:
+    if not math.isfinite(value):
+        raise FormulaError("non-finite constant")
+    return f"({value!r})::float8"
+
+
+def _guard(cond: str, expr: str) -> str:
+    return f"(CASE WHEN {cond} THEN {expr} END)"
+
+
+def _pow(a: str, b: str) -> str:
+    return (f"(CASE WHEN {a} > 0 THEN {_guard(f'abs({b}) * abs(ln({a})) < 700', f'power({a}, {b})')} "
+            f"WHEN {a} = 0 AND {b} > 0 THEN 0::float8 END)")
+
+
+def _call(name: str, a: list) -> str:
+    n = len(a)
+    one = {
+        "sqrt": lambda x: _guard(f"{x} >= 0", f"sqrt({x})"),
+        "log": lambda x: _guard(f"{x} > 0", f"ln({x})"),
+        "ln": lambda x: _guard(f"{x} > 0", f"ln({x})"),
+        "log10": lambda x: _guard(f"{x} > 0", f"log({x})"),
+        "log2": lambda x: _guard(f"{x} > 0", f"ln({x}) / ln(2::float8)"),
+        "exp": lambda x: _guard(f"{x} < 700", f"exp({x})"),
+        "abs": lambda x: f"abs({x})", "sin": lambda x: f"sin({x})", "cos": lambda x: f"cos({x})",
+        "tan": lambda x: f"tan({x})", "atan": lambda x: f"atan({x})", "round": lambda x: f"round({x})",
+        "asin": lambda x: _guard(f"abs({x}) <= 1", f"asin({x})"),
+        "acos": lambda x: _guard(f"abs({x}) <= 1", f"acos({x})"),
+    }
+    if name in one and n == 1:
+        return one[name](a[0])
+    if name == "pow" and n == 2:
+        return _pow(a[0], a[1])
+    if name in ("min", "max") and n >= 2:
+        return f"{'LEAST' if name == 'min' else 'GREATEST'}({', '.join(a)})"
+    raise FormulaError(f"{name}() with {n} arguments has no SQL translation")
+
+
+def _to_sql(node: ast.AST, col: str) -> str:
+    if isinstance(node, ast.Constant):
+        return _lit(float(node.value))
+    if isinstance(node, ast.Name):
+        if node.id == "V":
+            return col
+        if node.id in _CONSTS:
+            return _lit(_CONSTS[node.id])
+        raise FormulaError(f"bare name {node.id}")
+    if isinstance(node, ast.UnaryOp):
+        x = _to_sql(node.operand, col)
+        return f"(-{x})" if isinstance(node.op, ast.USub) else x
+    if isinstance(node, ast.BinOp):
+        a, b = _to_sql(node.left, col), _to_sql(node.right, col)
+        if isinstance(node.op, (ast.Add, ast.Sub, ast.Mult)):
+            op = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*"}[type(node.op)]
+            return f"({a} {op} {b})"
+        if isinstance(node.op, ast.Div):
+            return f"({a} / NULLIF({b}, 0))"
+        if isinstance(node.op, ast.Pow):
+            return _pow(a, b)
+        raise FormulaError("% and // have no SQL translation")
+    if isinstance(node, ast.Call):
+        return _call(node.func.id, [_to_sql(arg, col) for arg in node.args])
+    raise FormulaError(f"unsupported syntax: {type(node).__name__}")
 
 
 RAW = Formula.parse("Raw", "V\nV")
