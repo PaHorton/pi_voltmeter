@@ -1,0 +1,7 @@
+{
+  "formulas": ["pressure_torr", "Raw"],
+  "n": 1,
+  "range_v": 4.096,
+  "period_s": 0.5,
+  "usb_logging": false
+}

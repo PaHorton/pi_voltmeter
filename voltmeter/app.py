@@ -5,22 +5,19 @@ import argparse
 import logging
 import os
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Callable, List, Optional
 
 from .adc import Adc, Ads1115, SimAdc
 from .config import Config
-from .formulas import RAW, load_formulas
+from .formulas import load_formulas
 from .settings import NUM_CHANNELS, Settings
-from .sinks import ChannelReading, CsvSink, Reading, Sink
+from .sinks import CsvSink, Reading, Sink
 from .ui import Button, Status, Ui
 from .usb import UsbMonitor, find_usb_mount, import_formulas
+from .voltmeter_plugin import VoltmeterPlugin
 
 log = logging.getLogger("voltmeter")
-
-AVG_SAMPLES = 4  # ADC samples averaged per displayed reading (noise reduction)
-
 
 class App:
     def __init__(self, adc: Adc, display, pad, home: Path, config: Optional[Config] = None,
@@ -35,6 +32,9 @@ class App:
         self.settings_path = home / "settings.json"
         self.settings = Settings.load(self.settings_path)
         self.formulas = load_formulas(self.formula_dir)
+        self.voltmeter = VoltmeterPlugin(
+            adc, self.settings, self._divider, lambda: self.formulas,
+            "legacy", "legacy", "voltmeter", ("ch0", "ch1"))
         self.usb = UsbMonitor(usb_finder)
         self.ui = Ui(self.settings, lambda: sorted(self.formulas), self._settings_changed)
         self._sinks: List[Sink] = []   # extension point: add_sink(TigerDataSink(...))
@@ -82,13 +82,7 @@ class App:
 
     # ---- sampling ----------------------------------------------------
     def sample(self) -> Reading:
-        s = self.settings
-        channels = []
-        for ch in range(NUM_CHANNELS):
-            formula = self.formulas.get(s.formulas[ch], RAW)
-            volts = self.adc.read_volts(ch, AVG_SAMPLES, s.range_v) * self._divider[ch]
-            channels.append(ChannelReading(volts, formula(volts), formula.unit, formula.name))
-        return Reading(datetime.now().astimezone(), channels)
+        return self.voltmeter.sample_reading()
 
     def _publish(self, reading: Reading) -> None:
         """Send to sinks once every N seconds (settings.n); display updates faster."""

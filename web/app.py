@@ -270,6 +270,9 @@ def _page(theme: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
+    if os.environ.get("LAB_MODE", "").lower() in ("1", "true", "yes"):
+        from lab_dashboard import PAGE
+        return PAGE
     return _page("default")
 
 
@@ -291,3 +294,9 @@ def nge() -> str:
 @app.get("/98", response_class=HTMLResponse)
 def win98() -> str:
     return _page("98")
+
+
+# The public lab dashboard is deliberately separate from the legacy root and themes.
+from lab_dashboard import router as lab_router  # noqa: E402
+
+app.include_router(lab_router)

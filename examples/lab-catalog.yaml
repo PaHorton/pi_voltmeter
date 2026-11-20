@@ -1,0 +1,21 @@
+# Public metadata only. Deploy the same validated catalog to the web application.
+version: 1
+systems:
+  - id: cryocooler
+    label: Cryocooler
+    sensors:
+      - id: pressure
+        label: Pressure
+        instrument_id: voltmeter
+        unit: Torr
+        stale_after_s: 30
+      - id: voltage
+        label: Voltage
+        instrument_id: voltmeter
+        unit: V
+        stale_after_s: 30
+      - id: stage-temperature
+        label: Stage temperature
+        instrument_id: lakeshore
+        unit: K
+        stale_after_s: 30

@@ -1,0 +1,16 @@
+[Unit]
+Description=Lab measurement logger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=admin
+Environment=VOLTMETER_HOME=/home/admin/voltmeter
+EnvironmentFile=-/etc/voltmeter.env
+WorkingDirectory=/home/admin/voltmeter
+ExecStart=/home/admin/voltmeter-venv/bin/lablogger --config /etc/lablogger/logger.yaml --catalog /etc/lablogger/catalog.yaml --home /home/admin/voltmeter
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
