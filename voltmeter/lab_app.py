@@ -13,6 +13,8 @@ from .app import App, NullPad, SimDisplay
 from .catalog import load_catalog
 from .config import Config
 from .logger_config import load_logger_config, validate_catalog
+from .lakeshore218 import LakeShore218, SerialSettings
+from .lakeshore_plugin import LakeShorePlugin
 from .measurement_sink import MeasurementSink
 from .runtime import PluginRuntime, PluginSchedule
 from .voltmeter_plugin import VoltmeterPlugin
@@ -54,6 +56,22 @@ def database_sink(config):
                            flush_interval_s=config.flush_interval_s)
 
 
+def lakeshore_schedule(instrument, logger_id):
+    options = instrument.options
+    keys = {"port", "baudrate", "bytesize", "parity", "stopbits", "timeout"}
+    if set(options) != keys:
+        raise ValueError("Lake Shore options require port, baudrate, bytesize, parity, stopbits and timeout")
+    port = options["port"]
+    if not isinstance(port, str) or not port.strip():
+        raise ValueError("Lake Shore port must be a non-empty string")
+    settings = SerialSettings(baudrate=options["baudrate"], bytesize=options["bytesize"],
+                              parity=options["parity"], stopbits=options["stopbits"],
+                              timeout=options["timeout"])
+    plugin = LakeShorePlugin(lambda: LakeShore218(port, settings), logger_id,
+                             instrument.system_id, instrument.id, instrument.sensors)
+    return PluginSchedule(instrument.id, plugin, instrument.interval_s)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Lab measurement logger")
     parser.add_argument("--config", type=Path, required=True, help="logger configuration YAML")
@@ -74,11 +92,8 @@ def main() -> None:
         voltmeters = [instrument for instrument in logger.instruments if instrument.type == "voltmeter"]
         if len(voltmeters) > 1:
             raise ValueError("one OLED voltmeter plugin is supported per logger")
-        if any(instrument.type == "lakeshore218" for instrument in logger.instruments):
-            raise ValueError(
-                "Lake Shore hardware polling is not enabled yet: the serial adapter and "
-                "multi-input connection must be verified before the logger can start it")
-        schedules = []
+        schedules = [lakeshore_schedule(instrument, logger.logger_id)
+                     for instrument in logger.instruments if instrument.type == "lakeshore218"]
         if voltmeters and (voltmeters[0].options or set(voltmeters[0].sensors) != {0, 1}):
             raise ValueError("voltmeter requires channels 0 and 1 and empty options")
         sink = database_sink(config.database)

@@ -42,3 +42,32 @@ def test_runtime_rejects_invalid_schedules():
     schedule = PluginSchedule("same", FakePlugin(), 1)
     with pytest.raises(ValueError):
         PluginRuntime([schedule, schedule], lambda readings: None)
+
+
+def test_failed_connection_is_closed_and_reopened():
+    class ReconnectingPlugin:
+        def __init__(self):
+            self.opens = 0
+            self.closes = 0
+
+        def open(self):
+            self.opens += 1
+
+        def sample(self):
+            if self.opens == 1:
+                raise OSError("serial disconnected")
+            return []
+
+        def close(self):
+            self.closes += 1
+
+    plugin = ReconnectingPlugin()
+    published = threading.Event()
+    runtime = PluginRuntime([PluginSchedule("lake", plugin, 1)],
+                            lambda readings: published.set())
+    runtime.start()
+    try:
+        assert published.wait(3)
+    finally:
+        runtime.close()
+    assert plugin.opens == 2 and plugin.closes == 2

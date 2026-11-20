@@ -40,7 +40,7 @@ _KNOWN_STATUS_MASK = int(
     | ReadingStatus.UNITS_UNDER_RANGE
     | ReadingStatus.UNITS_OVER_RANGE
 )
-_READING_FORMAT = re.compile(r"[+-]\d+\.\d{3}\Z")
+_READING_FORMAT = re.compile(r"[+-]\d+\.\d{2,3}\Z")
 _STATUS_FORMAT = re.compile(r"\d+\Z")
 _RESPONSE_LIMIT = 128
 _MIN_COMMAND_INTERVAL = 0.05
@@ -98,7 +98,7 @@ class _PySerialTransport:
             ) from exc
 
         self._serial = serial.Serial(
-            port=port,
+            port=None,
             baudrate=settings.baudrate,
             bytesize=settings.bytesize,
             parity=settings.parity,
@@ -106,6 +106,10 @@ class _PySerialTransport:
             timeout=settings.timeout,
             write_timeout=settings.timeout,
         )
+        self._serial.dtr = False
+        self._serial.rts = False
+        self._serial.port = port
+        self._serial.open()
 
     def write(self, data: bytes) -> int:
         return self._serial.write(data)
@@ -136,9 +140,9 @@ class Reading:
 
 
 class LakeShore218:
-    """Read one configured input from a Model 218 using documented queries only.
+    """Read inputs from one Model 218 using documented queries only.
 
-    ``port``, ``input_number``, and all ``serial_settings`` are required even
+    ``port`` and all ``serial_settings`` are required even
     when a test or application injects its own transport. Injected transports
     implement ``write(bytes)``, ``read(size, timeout)``, and ``close()``.
     """
@@ -146,41 +150,44 @@ class LakeShore218:
     def __init__(
         self,
         port: str,
-        input_number: int,
         serial_settings: SerialSettings,
         *,
         transport: Transport | None = None,
     ) -> None:
         if not isinstance(port, str) or not port.strip():
             raise ValueError("port must be a non-empty serial port name")
-        if type(input_number) is not int or not 1 <= input_number <= 8:
-            raise ValueError("input_number must be an integer from 1 through 8")
         if not isinstance(serial_settings, SerialSettings):
             raise TypeError("serial_settings must be an explicit SerialSettings instance")
 
         self.port = port
-        self.input_number = input_number
         self.serial_settings = serial_settings
         self._transport = transport if transport is not None else _PySerialTransport(port, serial_settings)
         self._lock = threading.Lock()
         self._next_command_at = 0.0
         self._closed = False
 
-    def read_kelvin(self) -> Reading:
-        """Return the configured input's Kelvin value and reading status.
+    def read_kelvin(self, input_number: int) -> Reading:
+        """Return an input's Kelvin value and reading status.
 
         A nonzero status or malformed numeric reading is returned explicitly
         as ``valid=False``; communication and framing failures raise errors.
         """
+        if type(input_number) is not int or not 1 <= input_number <= 8:
+            raise ValueError("input_number must be an integer from 1 through 8")
         with self._lock:
-            status_text = self._query(f"RDGST? {self.input_number}")
+            enabled = self._query(f"INPUT? {input_number}")
+            if enabled not in ("0", "1"):
+                raise ProtocolError(f"invalid INPUT? response: {enabled!r}")
+            if enabled == "0":
+                return Reading(input_number, None, 0, (), 0, "", "input disabled")
+            status_text = self._query(f"RDGST? {input_number}")
             if not _STATUS_FORMAT.fullmatch(status_text):
                 raise ProtocolError(f"invalid RDGST? response: {status_text!r}")
             status = int(status_text)
             if status > 255:
                 raise ProtocolError(f"RDGST? status is outside the documented byte range: {status}")
 
-            raw_reading = self._query(f"KRDG? {self.input_number}")
+            raw_reading = self._query(f"KRDG? {input_number}")
             flags = tuple(flag for flag in ReadingStatus if status & int(flag))
             unknown_bits = status & (0xFF ^ _KNOWN_STATUS_MASK)
             value: float | None = None
@@ -202,7 +209,7 @@ class LakeShore218:
                 error = f"{error}; {status_error}" if error else status_error
 
             return Reading(
-                input_number=self.input_number,
+                input_number=input_number,
                 kelvin=value,
                 status=status,
                 status_flags=flags,

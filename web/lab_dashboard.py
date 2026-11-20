@@ -16,7 +16,13 @@ from voltmeter.catalog import Sensor, System, load_catalog
 
 
 HERE = Path(__file__).resolve().parent
-CATALOG = load_catalog(HERE / "catalog.yaml")
+
+
+def _load_public_catalog() -> Dict[str, System]:
+    return load_catalog(HERE / os.environ.get("LAB_CATALOG", "catalog.yaml"))
+
+
+CATALOG = _load_public_catalog()
 PAGE = (HERE / "lab.html").read_text(encoding="utf-8")
 router = APIRouter()
 

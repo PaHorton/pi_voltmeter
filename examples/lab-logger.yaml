@@ -12,7 +12,7 @@ instruments:
     type: lakeshore218
     system_id: cryocooler
     interval_s: 5
-    sensors: {1: stage-temperature}
+    sensors: {1: temperature-1, 2: temperature-2, 3: temperature-3}
     options:
       port: /dev/ttyUSB0
       baudrate: 9600

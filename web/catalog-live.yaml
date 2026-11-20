@@ -1,0 +1,31 @@
+# Public metadata for the live cryocooler. Keep IDs and units aligned with the logger.
+version: 1
+systems:
+  - id: cryocooler
+    label: Cryocooler
+    sensors:
+      - id: pressure
+        label: Pressure
+        instrument_id: voltmeter
+        unit: Torr
+        stale_after_s: 30
+      - id: voltage
+        label: Voltage
+        instrument_id: voltmeter
+        unit: V
+        stale_after_s: 30
+      - id: temperature-1
+        label: Temperature 1
+        instrument_id: lakeshore
+        unit: K
+        stale_after_s: 30
+      - id: temperature-2
+        label: Temperature 2
+        instrument_id: lakeshore
+        unit: K
+        stale_after_s: 30
+      - id: temperature-3
+        label: Temperature 3
+        instrument_id: lakeshore
+        unit: K
+        stale_after_s: 30

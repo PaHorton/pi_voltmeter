@@ -69,6 +69,49 @@ def test_catalog_is_explicit_public_structure_and_copy_matches_source():
     assert [sensor.id for sensor in lab.CATALOG["demo-lab"].sensors] == ["pressure", "temperature"]
 
 
+def test_live_catalog_is_opt_in_and_matches_logger_example(monkeypatch):
+    monkeypatch.delenv("LAB_CATALOG", raising=False)
+    assert set(lab._load_public_catalog()) == {"demo-lab"}
+    monkeypatch.setenv("LAB_CATALOG", "catalog-live.yaml")
+    live = lab._load_public_catalog()
+    assert live == lab.load_catalog(ROOT / "examples" / "lab-catalog.yaml")
+    assert set(live) == {"cryocooler"}
+    assert [(sensor.id, sensor.instrument_id, sensor.unit) for sensor in live["cryocooler"].sensors] == [
+        ("pressure", "voltmeter", "Torr"),
+        ("voltage", "voltmeter", "V"),
+        ("temperature-1", "lakeshore", "K"),
+        ("temperature-2", "lakeshore", "K"),
+        ("temperature-3", "lakeshore", "K"),
+    ]
+    monkeypatch.setenv("LAB_CATALOG", "missing.yaml")
+    with pytest.raises(FileNotFoundError):
+        lab._load_public_catalog()
+
+
+def test_live_catalog_routes_report_matching_and_mismatched_measurements(monkeypatch):
+    monkeypatch.setenv("LAB_CATALOG", "catalog-live.yaml")
+    monkeypatch.delenv("DEMO_MODE", raising=False)
+    monkeypatch.setattr(lab, "CATALOG", lab._load_public_catalog())
+    now = datetime.now(timezone.utc)
+    columns = ["time", "sensor_id", "instrument_id", "native_value", "native_unit",
+               "value", "unit", "quality", "conversion"]
+    rows = [
+        (now, "pressure", "voltmeter", 1.0, "V", 1.0, "V", "good", "Raw"),
+        (now, "temperature-1", "lakeshore", 4.2, "K", 4.2, "K", "good", None),
+    ]
+    monkeypatch.setattr(lab, "_connect", lambda: FakeConnection(FakeCursor(rows, columns)))
+
+    systems = client.get("/api/lab/systems").json()
+    latest = client.get("/api/lab/systems/cryocooler/latest").json()
+    assert systems["systems"] == [{"id": "cryocooler", "label": "Cryocooler", "sensor_count": 5}]
+    sensors = {sensor["id"]: sensor for sensor in latest["sensors"]}
+    assert sensors["pressure"]["state"] == "incompatible"
+    assert sensors["pressure"]["value"] is None
+    assert sensors["temperature-1"]["state"] == "online"
+    assert sensors["temperature-1"]["value"] == 4.2
+    assert sensors["temperature-2"]["state"] == "unavailable"
+
+
 def test_web_measurement_copy_has_exact_measurement_fields():
     namespace = {}
     source = (WEB / "voltmeter" / "measurements.py").read_text(encoding="utf-8")

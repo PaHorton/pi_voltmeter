@@ -14,8 +14,18 @@ systems:
         instrument_id: voltmeter
         unit: V
         stale_after_s: 30
-      - id: stage-temperature
-        label: Stage temperature
+      - id: temperature-1
+        label: Temperature 1
+        instrument_id: lakeshore
+        unit: K
+        stale_after_s: 30
+      - id: temperature-2
+        label: Temperature 2
+        instrument_id: lakeshore
+        unit: K
+        stale_after_s: 30
+      - id: temperature-3
+        label: Temperature 3
         instrument_id: lakeshore
         unit: K
         stale_after_s: 30
