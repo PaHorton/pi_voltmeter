@@ -1,0 +1,17 @@
+# This file is the public allow-list for /lab. Metadata here is visible to anyone.
+# Replace or extend the demo system with stable IDs for systems you intend to publish.
+version: 1
+systems:
+  - id: demo-lab
+    label: Demonstration lab
+    sensors:
+      - id: pressure
+        label: Chamber pressure
+        instrument_id: demo-gauge
+        unit: Torr
+        stale_after_s: 30
+      - id: temperature
+        label: Cold-head temperature
+        instrument_id: demo-thermometer
+        unit: "°C"
+        stale_after_s: 30

@@ -1,0 +1,22 @@
+# Example only: verify IDs, port, channel wiring and serial settings for your hardware.
+version: 1
+logger_id: logger-1
+instruments:
+  - id: voltmeter
+    type: voltmeter
+    system_id: cryocooler
+    interval_s: 1
+    sensors: {0: pressure, 1: voltage}
+    options: {}
+  - id: lakeshore
+    type: lakeshore218
+    system_id: cryocooler
+    interval_s: 5
+    sensors: {1: temperature-1, 2: temperature-2, 3: temperature-3}
+    options:
+      port: /dev/ttyUSB0
+      baudrate: 9600
+      bytesize: 7
+      parity: O
+      stopbits: 1
+      timeout: 1.0

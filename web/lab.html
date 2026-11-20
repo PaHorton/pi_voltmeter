@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10181b">
+  <title>Public Lab Systems</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; background:#10181b; color:#e7f0ed; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(ellipse at 70% -20%,#28453e 0,transparent 55%),#10181b; }
+    header, main { width:min(1080px,100% - 32px); margin:auto; }
+    header { padding:24px 0 16px; border-bottom:1px solid #2d403d; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    a { color:#91e6be; }
+    .brand { font-weight:800; letter-spacing:.12em; text-transform:uppercase; text-decoration:none; }
+    main { padding:34px 0 56px; }
+    h1 { margin:0 0 8px; font-size:clamp(2rem,6vw,3.5rem); letter-spacing:-.05em; }
+    .muted { color:#aabbb5; line-height:1.55; }
+    .eyebrow { color:#91e6be; font:700 .75rem ui-monospace,monospace; text-transform:uppercase; letter-spacing:.14em; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:14px; margin-top:26px; }
+    .card { background:#182321eF; border:1px solid #334740; border-radius:14px; padding:20px; box-shadow:0 12px 30px #0002; }
+    .system-link { display:block; min-height:145px; color:inherit; text-decoration:none; transition:border-color .15s,transform .15s; }
+    .system-link:hover,.system-link:focus-visible { border-color:#91e6be; transform:translateY(-2px); outline:none; }
+    .system-link h2 { margin:12px 0 8px; }
+    .topline { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .pill { border:1px solid #46625a; padding:5px 9px; border-radius:999px; font-size:.78rem; color:#c1d5cd; }
+    .sensor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:12px; margin:24px 0; }
+    .sensor-card { cursor:pointer; text-align:left; color:inherit; font:inherit; width:100%; transition:border-color .15s; }
+    .sensor-card.selected { border-color:#91e6be; box-shadow:inset 0 0 0 1px #91e6be; }
+    .sensor-card h2 { margin:0 0 12px; font-size:1rem; }
+    .reading { font-size:clamp(1.7rem,5vw,2.4rem); font-weight:750; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+    .status { display:inline-flex; align-items:center; gap:7px; font-size:.78rem; color:#bcd0c8; }
+    .dot { width:8px; height:8px; display:inline-block; border-radius:50%; background:#93e5b7; }
+    .dot.stale,.dot.invalid,.dot.unavailable,.dot.incompatible { background:#ff8c70; }
+    .toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+    select,button { background:#182321; color:#e7f0ed; border:1px solid #46625a; border-radius:8px; padding:9px 12px; font:inherit; }
+    button { cursor:pointer; }
+    button:hover { border-color:#91e6be; }
+    .chart-wrap { margin-top:14px; overflow:hidden; }
+    svg { display:block; width:100%; height:260px; overflow:visible; }
+    .axis { stroke:#38504a; stroke-width:1; }
+    .chart-line { fill:none; stroke:#91e6be; stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; }
+    .chart-point { fill:#10181b; stroke:#91e6be; stroke-width:2; }
+    .notice { margin-top:18px; padding:12px 14px; border-left:3px solid #91e6be; background:#1b2926; }
+    .error { color:#ffb6a8; }
+    footer { margin-top:26px; font-size:.82rem; color:#91a69e; }
+    @media(max-width:520px) { header { padding-top:18px; } main { padding-top:26px; } .card { padding:16px; } svg { height:210px; } }
+  </style>
+</head>
+<body>
+  <header><a class="brand" href="/lab">Public Lab Systems</a><a href="/lab">All systems</a></header>
+  <main id="app"><p class="muted">Loading public lab data…</p></main>
+  <script>
+    const root = document.getElementById("app");
+    const path = location.pathname.split("/").filter(Boolean);
+    const systemId = path[0] === "systems" && path.length === 2 ? decodeURIComponent(path[1])
+      : path[0] === "lab" && path[1] === "systems" && path.length === 3 ? decodeURIComponent(path[2]) : null;
+    const ranges = ["1m", "5m", "10m", "30m", "1h", "6h", "24h", "7d"];
+    const state = { system: null, sensors: [], selected: null, range: "1h" };
+    const el = (tag, cls, text) => {
+      const node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    async function getJson(url) {
+      const response = await fetch(url, {headers: {"Accept": "application/json"}});
+      if (!response.ok) throw new Error(response.status === 404 ? "This public system or sensor was not found." : "Lab data is temporarily unavailable.");
+      return response.json();
+    }
+    function showError(error) {
+      root.replaceChildren(el("h1", "", "Unable to load lab data"), el("p", "muted error", error.message));
+    }
+    async function showIndex() {
+      const data = await getJson("/api/lab/systems");
+      root.replaceChildren(el("div", "eyebrow", data.demo ? "Demo data · no database connection" : "Public catalog"),
+        el("h1", "", "Systems"), el("p", "muted", "Only systems and sensors explicitly listed in the public catalog appear here."));
+      const grid = el("div", "grid");
+      for (const system of data.systems) {
+        const link = el("a", "card system-link");
+        link.href = `/systems/${encodeURIComponent(system.id)}`;
+        link.append(el("div", "eyebrow", system.id), el("h2", "", system.label),
+          el("p", "muted", `${system.sensor_count} ${system.sensor_count === 1 ? "sensor" : "sensors"}`));
+        const status = el("p", "muted", "Loading sensors…");
+        link.append(status);
+        getJson(`/api/lab/systems/${encodeURIComponent(system.id)}/latest`).then(latest => {
+          status.textContent = latest.sensors.map(sensor => `${sensor.label}: ${sensor.state}`).join(" · ") || "No sensors";
+        }).catch(() => { status.textContent = "Sensor status unavailable"; });
+        grid.append(link);
+      }
+      if (!data.systems.length) grid.append(el("p", "muted", "No public systems are configured."));
+      root.append(grid);
+    }
+    function displayValue(value, unit) {
+      return value === null || !Number.isFinite(value) ? `— ${unit}` : `${Number(value).toLocaleString(undefined, {maximumFractionDigits: 4})} ${unit}`;
+    }
+    async function loadSystem() {
+      const latest = await getJson(`/api/lab/systems/${encodeURIComponent(systemId)}/latest`);
+      state.system = latest.system;
+      state.sensors = latest.sensors;
+      state.demo = latest.demo;
+      if (!state.selected || !state.sensors.some(s => s.id === state.selected)) state.selected = state.sensors[0]?.id;
+      renderSystem();
+      await loadHistory();
+    }
+    async function refreshLatest() {
+      const latest = await getJson(`/api/lab/systems/${encodeURIComponent(systemId)}/latest`);
+      state.system = latest.system;
+      state.sensors = latest.sensors;
+      state.demo = latest.demo;
+      for (const sensor of state.sensors) {
+        const card = document.querySelector(`[data-sensor-id="${CSS.escape(sensor.id)}"]`);
+        if (!card) continue;
+        card.querySelector(".reading").textContent = displayValue(sensor.value, sensor.unit);
+        card.querySelector(".dot").className = `dot ${sensor.state}`;
+        card.querySelector(".status-label").textContent = `${sensor.state}${sensor.age_s === null ? "" : ` · ${sensor.age_s}s ago`}`;
+        card.querySelector(".quality-label").textContent = sensor.compatible === false
+          ? `Incompatible data: ${sensor.observed_instrument_id} / ${sensor.observed_unit}; expected ${sensor.instrument_id} / ${sensor.unit}`
+          : `Sensor ${sensor.id} · ${sensor.quality}`;
+      }
+      document.getElementById("demo-label").textContent = latest.demo ? "Demo data · no database connection" : "Public live system";
+      document.getElementById("refresh-error").textContent = "";
+    }
+    function renderSystem() {
+      root.replaceChildren();
+      const eyebrow = el("div", "eyebrow", state.demo ? "Demo data · no database connection" : "Public live system");
+      eyebrow.id = "demo-label";
+      const titleRow = el("div", "topline");
+      titleRow.append(el("h1", "", state.system.label));
+      const refresh = el("button", "", "Refresh");
+      refresh.type = "button";
+      refresh.addEventListener("click", () => refreshLatest().catch(error => {
+        document.getElementById("refresh-error").textContent = error.message;
+      }));
+      titleRow.append(refresh);
+      root.append(eyebrow, titleRow,
+        el("p", "muted", `Stable system ID: ${state.system.id}. Values are public; no login or credentials are used.`));
+      const sensors = el("div", "sensor-grid");
+      for (const sensor of state.sensors) {
+        const card = el("button", `card sensor-card ${sensor.id === state.selected ? "selected" : ""}`);
+        card.type = "button";
+        card.dataset.sensorId = sensor.id;
+        card.setAttribute("aria-pressed", sensor.id === state.selected ? "true" : "false");
+        card.append(el("h2", "", sensor.label), el("div", "reading", displayValue(sensor.value, sensor.unit)));
+        const status = el("div", "status");
+        status.append(el("span", `dot ${sensor.state}`), el("span", "status-label", `${sensor.state}${sensor.age_s === null ? "" : ` · ${sensor.age_s}s ago`}`));
+        const detail = sensor.compatible === false
+          ? `Incompatible data: ${sensor.observed_instrument_id} / ${sensor.observed_unit}; expected ${sensor.instrument_id} / ${sensor.unit}`
+          : `Sensor ${sensor.id} · ${sensor.quality}`;
+        card.append(status, el("p", "muted quality-label", detail));
+        card.addEventListener("click", async () => { state.selected = sensor.id; renderSystem(); await loadHistory(); });
+        sensors.append(card);
+      }
+      root.append(sensors);
+      const panel = el("section", "card");
+      const toolbar = el("div", "topline");
+      toolbar.append(el("h2", "", "History"));
+      const select = el("select");
+      select.setAttribute("aria-label", "History time range");
+      for (const range of ranges) {
+        const option = el("option", "", range);
+        option.value = range;
+        option.selected = range === state.range;
+        select.append(option);
+      }
+      select.addEventListener("change", async () => { state.range = select.value; await loadHistory(); });
+      toolbar.append(select);
+      panel.append(toolbar, el("p", "muted", `Arithmetic average of valid engineering values per time bucket · ${state.selected || "no sensor selected"}`));
+      const chart = el("div", "chart-wrap");
+      chart.id = "history-chart";
+      chart.setAttribute("aria-live", "polite");
+      panel.append(chart);
+      root.append(panel);
+      root.append(el("div", "notice muted", "No measurement is shown as zero. Missing, invalid, unavailable, or stale data is clearly marked."));
+      const refreshError = el("p", "muted error", "");
+      refreshError.id = "refresh-error";
+      root.append(refreshError);
+      root.append(el("footer", "", "Public read-only dashboard. System and sensor metadata come from the deployment catalog."));
+    }
+    function renderChart(chart, data) {
+      chart.replaceChildren();
+      const rows = data.points || [];
+      if (!rows.length) { chart.append(el("p", "muted", "No measurements in this time range.")); return; }
+      const incompatibleCount = rows.reduce((sum, row) => sum + (row.incompatible_count || 0), 0);
+      if (incompatibleCount) {
+        chart.append(el("p", "notice error",
+          `${incompatibleCount} readings with a mismatched unit or instrument were excluded from averages.`));
+      }
+      const w = 900, h = 250, pad = 32;
+      const values = rows.map(r => r.value).filter(v => Number.isFinite(v));
+      if (!values.length) { chart.append(el("p", "muted", "No compatible valid values in this time range.")); return; }
+      let ymin = Math.min(...values), ymax = Math.max(...values);
+      if (ymin === ymax) { const extra = Math.abs(ymin * .05) || 1; ymin -= extra; ymax += extra; }
+      const times = rows.map(r => Date.parse(r.time)).filter(Number.isFinite);
+      const xmin = Math.min(...times), xmax = Math.max(...times);
+      const x = t => pad + (xmax === xmin ? .5 : (t - xmin) / (xmax - xmin)) * (w - pad * 2);
+      const y = v => h - pad - ((v - ymin) / (ymax - ymin)) * (h - pad * 2);
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", `History of ${state.selected} in ${data.unit}`);
+      for (const yy of [pad, h / 2, h - pad]) {
+        const line = document.createElementNS(svg.namespaceURI, "line");
+        line.setAttribute("x1", pad); line.setAttribute("x2", w - pad);
+        line.setAttribute("y1", yy); line.setAttribute("y2", yy); line.setAttribute("class", "axis");
+        svg.append(line);
+      }
+      let segment = [];
+      const flush = () => {
+        if (segment.length > 1) {
+          const poly = document.createElementNS(svg.namespaceURI, "polyline");
+          poly.setAttribute("class", "chart-line");
+          poly.setAttribute("points", segment.map(p => `${x(p.t)},${y(p.v)}`).join(" "));
+          svg.append(poly);
+        }
+        segment = [];
+      };
+      for (const row of rows) {
+        const t = Date.parse(row.time);
+        if (!Number.isFinite(row.value) || !Number.isFinite(t)) { flush(); continue; }
+        segment.push({t, v: row.value});
+      }
+      flush();
+      chart.append(svg, el("p", "muted", `${values.length} valid buckets · ${data.unit} · ${new Date(xmax).toLocaleString()} latest`));
+    }
+    async function loadHistory() {
+      const chart = document.getElementById("history-chart");
+      if (!chart || !state.selected) return;
+      chart.replaceChildren(el("p", "muted", "Loading history…"));
+      try {
+        const data = await getJson(`/api/lab/systems/${encodeURIComponent(systemId)}/history?sensor_id=${encodeURIComponent(state.selected)}&range=${encodeURIComponent(state.range)}`);
+        renderChart(chart, data);
+      } catch (error) { chart.replaceChildren(el("p", "muted error", error.message)); }
+    }
+    (systemId ? loadSystem() : showIndex()).catch(showError);
+    if (systemId) window.setInterval(() => {
+      refreshLatest().catch(error => {
+        const node = document.getElementById("refresh-error");
+        if (node) node.textContent = error.message;
+      });
+    }, 15000);
+  </script>
+</body>
+</html>

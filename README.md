@@ -96,3 +96,50 @@ Graph values are the average of each time bucket's *converted* readings: formula
 The page has a history graph (1m to 24h, per device/channel, value or volts, linear or log).
 Channels older than `STALE_AFTER_S` (30 s) are dimmed and marked stale. If a row names a formula
 that is not in `formulas/`, the page falls back to showing volts.
+
+## Lab logger prototype
+
+The general-purpose logger is an **opt-in prototype**; the existing
+`voltmeter` command and current `readings` table remain the production path. No
+existing rows are migrated or modified.
+
+- A generic timezone-aware measurement contract is in `voltmeter/measurements.py`;
+  a validated public sensor catalog example is in `examples/lab-catalog.yaml`.
+- A separate logger/plugin configuration example is in `examples/lab-logger.yaml`.
+  The new command is `lablogger --config <logger.yaml> --catalog <catalog.yaml> --home ~/voltmeter --sim`.
+  `--sim` simulates the ADS1115 only. A configured Lake Shore entry still opens a real serial
+  port; remove that entry from a test config unless the instrument is connected.
+- For the example voltmeter mapping, copy `examples/lab-settings.json` to
+  `~/voltmeter/settings.json` and ensure the `pressure_torr` formula exists in
+  `~/voltmeter/formulas/`; otherwise the public dashboard will correctly flag the `Torr` sensor
+  as incompatible while the channel is set to `Raw`.
+- `db/lab_measurements.sql` creates a **separate** hypertable. An administrator must review
+  and apply it and configure least-privilege writer/reader roles before the new logger or
+  database-backed public dashboard can be used. Do not point the web app at a writer/admin
+  account. The bounded sink buffer is in memory, not durable.
+- `deploy/lablogger.service` is an example systemd unit, not installed or enabled. The logger
+  database configuration must use a writer role granted `INSERT` on the new table; the public
+  dashboard role should have `SELECT` only.
+- Set `LAB_MODE=1` to make the new public systems landing page take over `/`; otherwise the
+  current voltmeter dashboard remains at `/`. `/lab` is also available while the existing home
+  page remains. For the live cryocooler project, set `LAB_CATALOG=catalog-live.yaml` and use a
+  read-only `DATABASE_URL` with `SELECT` on `public.lab_measurements`. Configure these on the
+  live project only; leave `LAB_CATALOG` unset on the separate demo project so it retains
+  `web/catalog.yaml` and its `demo-lab`. `DEMO_MODE=1` serves synthetic readings without a
+  database connection. Catalogs are loaded at startup, and public pages expose their metadata
+  and readings, so publish only systems and sensors intended for public access.
+- For a Model 218 over RS-232, install `pip install '.[pi,tigerdata,lakeshore]'` on the Pi.
+  Configure `port`, `baudrate`, `bytesize`, `parity`, `stopbits`, and `timeout` in the
+  Lake Shore instrument's `options`. Use the actual serial device and instrument baud rate;
+  supported framing is 7 data bits, odd parity, and one stop bit. The example uses 9600 baud.
+  Map input numbers 1-8 to the desired sensor IDs in `sensors` and add matching Kelvin sensors
+  to the catalog. These mappings select inputs to read; they do not enable inputs or change
+  sensor types, calibration curves, or other instrument settings.
+- The Lake Shore plugin checks input enablement and status for each reading, marks disabled or
+  out-of-range readings invalid, and reconnects after communication failures. Its `interval_s`
+  controls the delay between polling cycles; voltmeter records still follow OLED setting N.
+  The OLED and USB CSV remain voltmeter-only. `--sim` does not simulate the Model 218.
+- A Model 218S was verified over a Mac USB serial adapter at 9600/7-O-1. Confirm readings against
+  the instrument display and validate the Pi's adapter, permissions, and stable port before
+  deployment. The Lake Shore library does not officially list Model 218 support; this
+  implementation uses the optional `pyserial` dependency.
