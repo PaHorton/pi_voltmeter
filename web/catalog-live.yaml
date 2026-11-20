@@ -9,11 +9,6 @@ systems:
         instrument_id: voltmeter
         unit: Torr
         stale_after_s: 30
-      - id: voltage
-        label: Voltage
-        instrument_id: voltmeter
-        unit: V
-        stale_after_s: 30
       - id: temperature-1
         label: Temperature 1
         instrument_id: lakeshore

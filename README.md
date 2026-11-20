@@ -128,6 +128,11 @@ existing rows are migrated or modified.
   `web/catalog.yaml` and its `demo-lab`. `DEMO_MODE=1` serves synthetic readings without a
   database connection. Catalogs are loaded at startup, and public pages expose their metadata
   and readings, so publish only systems and sensors intended for public access.
+- The lab dashboard uses the neo-brutalist theme by default; with `LAB_MODE=1`, `/neo` is an
+  additional lab entry point. The legacy `/neo` remains unchanged when lab mode is off.
+  The live catalog exposes pressure
+  and the three temperatures, not the unused channel 1 voltage. This does not change logging
+  on the Pi or delete stored measurements.
 - For a Model 218 over RS-232, install `pip install '.[pi,tigerdata,lakeshore]'` on the Pi.
   Configure `port`, `baudrate`, `bytesize`, `parity`, `stopbits`, and `timeout` in the
   Lake Shore instrument's `options`. Use the actual serial device and instrument baud rate;

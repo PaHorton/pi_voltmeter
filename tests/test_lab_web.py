@@ -22,6 +22,9 @@ client = TestClient(legacy_web.app)
 def test_opt_in_lab_landing_and_direct_system_url(monkeypatch):
     monkeypatch.setenv("LAB_MODE", "1")
     assert "Public Lab Systems" in client.get("/").text
+    assert 'data-theme="neo"' in client.get("/").text
+    assert 'data-theme="neo"' in client.get("/lab").text
+    assert 'data-theme="neo"' in client.get("/systems/demo-lab").text
     assert client.get("/systems/demo-lab").status_code == 200
     assert client.get("/systems/unknown").status_code == 404
 
@@ -69,16 +72,14 @@ def test_catalog_is_explicit_public_structure_and_copy_matches_source():
     assert [sensor.id for sensor in lab.CATALOG["demo-lab"].sensors] == ["pressure", "temperature"]
 
 
-def test_live_catalog_is_opt_in_and_matches_logger_example(monkeypatch):
+def test_live_catalog_is_opt_in_and_excludes_unused_voltage(monkeypatch):
     monkeypatch.delenv("LAB_CATALOG", raising=False)
     assert set(lab._load_public_catalog()) == {"demo-lab"}
     monkeypatch.setenv("LAB_CATALOG", "catalog-live.yaml")
     live = lab._load_public_catalog()
-    assert live == lab.load_catalog(ROOT / "examples" / "lab-catalog.yaml")
     assert set(live) == {"cryocooler"}
     assert [(sensor.id, sensor.instrument_id, sensor.unit) for sensor in live["cryocooler"].sensors] == [
         ("pressure", "voltmeter", "Torr"),
-        ("voltage", "voltmeter", "V"),
         ("temperature-1", "lakeshore", "K"),
         ("temperature-2", "lakeshore", "K"),
         ("temperature-3", "lakeshore", "K"),
@@ -103,13 +104,26 @@ def test_live_catalog_routes_report_matching_and_mismatched_measurements(monkeyp
 
     systems = client.get("/api/lab/systems").json()
     latest = client.get("/api/lab/systems/cryocooler/latest").json()
-    assert systems["systems"] == [{"id": "cryocooler", "label": "Cryocooler", "sensor_count": 5}]
+    assert systems["systems"] == [{"id": "cryocooler", "label": "Cryocooler", "sensor_count": 4}]
     sensors = {sensor["id"]: sensor for sensor in latest["sensors"]}
     assert sensors["pressure"]["state"] == "incompatible"
     assert sensors["pressure"]["value"] is None
     assert sensors["temperature-1"]["state"] == "online"
     assert sensors["temperature-1"]["value"] == 4.2
     assert sensors["temperature-2"]["state"] == "unavailable"
+    assert "voltage" not in sensors
+    assert client.get("/api/lab/systems/cryocooler/history", params={"sensor_id": "voltage"}).status_code == 404
+
+
+def test_neo_lab_routes_preserve_theme_and_legacy_mode(monkeypatch):
+    monkeypatch.setenv("LAB_MODE", "1")
+    assert 'data-theme="neo"' in client.get("/neo").text
+    assert 'id="app"' in client.get("/neo").text
+    assert 'data-theme="neo"' in client.get("/neo/systems/demo-lab").text
+    assert client.get("/neo/systems/unknown").status_code == 404
+    monkeypatch.delenv("LAB_MODE")
+    assert 'data-theme="neo"' in client.get("/neo").text
+    assert 'id="cards"' in client.get("/neo").text
 
 
 def test_web_measurement_copy_has_exact_measurement_fields():

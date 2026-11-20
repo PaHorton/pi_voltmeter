@@ -283,3 +283,9 @@ def lab_index() -> str:
 def lab_system_page(system_id: str) -> str:
     _system_or_404(system_id)
     return PAGE
+
+
+@router.get("/neo/systems/{system_id}", response_class=HTMLResponse)
+def neo_system_page(system_id: str) -> str:
+    _system_or_404(system_id)
+    return PAGE

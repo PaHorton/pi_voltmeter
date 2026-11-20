@@ -283,6 +283,9 @@ def neon() -> str:
 
 @app.get("/neo", response_class=HTMLResponse)
 def neo() -> str:
+    if os.environ.get("LAB_MODE", "").lower() in ("1", "true", "yes"):
+        from lab_dashboard import PAGE
+        return PAGE
     return _page("neo")
 
 

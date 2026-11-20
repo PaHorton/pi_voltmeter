@@ -37,24 +37,55 @@
     button { cursor:pointer; }
     button:hover { border-color:#91e6be; }
     .chart-wrap { margin-top:14px; overflow:hidden; }
-    svg { display:block; width:100%; height:260px; overflow:visible; }
+    svg { display:block; width:100%; height:auto; }
     .axis { stroke:#38504a; stroke-width:1; }
+    .axis-boundary { stroke:#c1d5cd; stroke-width:1.5; }
+    .axis-label { fill:#c1d5cd; font:12px ui-sans-serif,system-ui,sans-serif; }
+    .axis-title { fill:#e7f0ed; font:700 12px ui-sans-serif,system-ui,sans-serif; }
     .chart-line { fill:none; stroke:#91e6be; stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; }
     .chart-point { fill:#10181b; stroke:#91e6be; stroke-width:2; }
     .notice { margin-top:18px; padding:12px 14px; border-left:3px solid #91e6be; background:#1b2926; }
     .error { color:#ffb6a8; }
     footer { margin-top:26px; font-size:.82rem; color:#91a69e; }
-    @media(max-width:520px) { header { padding-top:18px; } main { padding-top:26px; } .card { padding:16px; } svg { height:210px; } }
+    body[data-theme="neo"] { color-scheme:light; background-color:#e6e3dc; background-image:radial-gradient(#000 1.2px,transparent 1.2px); background-size:22px 22px; color:#000; font-weight:800; }
+    body[data-theme="neo"] header { background:#a6e22e; border:4px solid #000; box-shadow:8px 8px 0 #000; padding:20px; margin-top:24px; }
+    body[data-theme="neo"] a, body[data-theme="neo"] .eyebrow { color:#000; }
+    body[data-theme="neo"] .brand, body[data-theme="neo"] h1 { text-shadow:2px 2px 0 #4a95cf; }
+    body[data-theme="neo"] .muted, body[data-theme="neo"] footer, body[data-theme="neo"] .status { color:#333; }
+    body[data-theme="neo"] .card { background:#fff; border:4px solid #000; border-radius:0; box-shadow:8px 8px 0 #000; }
+    body[data-theme="neo"] .sensor-card:nth-child(4n+1) { background:#a6e22e; }
+    body[data-theme="neo"] .sensor-card:nth-child(4n+2) { background:#4a95cf; }
+    body[data-theme="neo"] .sensor-card:nth-child(4n+3) { background:#f5b301; }
+    body[data-theme="neo"] .sensor-card:nth-child(4n+4) { background:#c3c8ce; }
+    body[data-theme="neo"] .sensor-card.selected { box-shadow:inset 0 0 0 3px #fff,8px 8px 0 #000; }
+    body[data-theme="neo"] .system-link:hover, body[data-theme="neo"] .system-link:focus-visible { border-color:#000; }
+    body[data-theme="neo"] button, body[data-theme="neo"] select { background:#fff; color:#000; border:3px solid #000; border-radius:0; font-weight:800; }
+    body[data-theme="neo"] .sensor-card { border:4px solid #000; }
+    body[data-theme="neo"] .dot { background:#185c00; }
+    body[data-theme="neo"] .dot.stale, body[data-theme="neo"] .dot.invalid, body[data-theme="neo"] .dot.unavailable, body[data-theme="neo"] .dot.incompatible { background:#b40013; }
+    body[data-theme="neo"] .chart-wrap { background:#f4f2ec; border:3px solid #000; padding:8px; }
+    body[data-theme="neo"] .axis { stroke:#777; }
+    body[data-theme="neo"] .axis-boundary { stroke:#000; }
+    body[data-theme="neo"] .axis-label, body[data-theme="neo"] .axis-title { fill:#000; }
+    body[data-theme="neo"] .chart-line, body[data-theme="neo"] .chart-point { stroke:#2f6f00; }
+    body[data-theme="neo"] .chart-point { fill:#f4f2ec; }
+    body[data-theme="neo"] .notice { background:#fff; border-left-color:#000; }
+    body[data-theme="neo"] .error { color:#9d0010; }
+    @media(max-width:520px) { header { padding-top:18px; } main { padding-top:26px; } .card { padding:16px; } }
   </style>
 </head>
-<body>
-  <header><a class="brand" href="/lab">Public Lab Systems</a><a href="/lab">All systems</a></header>
+<body data-theme="neo">
+  <header><a class="brand" href="/lab">Public Lab Systems</a><a id="all-systems" href="/lab">All systems</a></header>
   <main id="app"><p class="muted">Loading public lab data…</p></main>
   <script>
     const root = document.getElementById("app");
     const path = location.pathname.split("/").filter(Boolean);
+    const neoRoute = path[0] === "neo";
+    const indexPath = neoRoute ? "/neo" : "/lab";
+    document.querySelector(".brand").href = indexPath;
+    document.getElementById("all-systems").href = indexPath;
     const systemId = path[0] === "systems" && path.length === 2 ? decodeURIComponent(path[1])
-      : path[0] === "lab" && path[1] === "systems" && path.length === 3 ? decodeURIComponent(path[2]) : null;
+      : (path[0] === "lab" || path[0] === "neo") && path[1] === "systems" && path.length === 3 ? decodeURIComponent(path[2]) : null;
     const ranges = ["1m", "5m", "10m", "30m", "1h", "6h", "24h", "7d"];
     const state = { system: null, sensors: [], selected: null, range: "1h" };
     const el = (tag, cls, text) => {
@@ -78,7 +109,7 @@
       const grid = el("div", "grid");
       for (const system of data.systems) {
         const link = el("a", "card system-link");
-        link.href = `/systems/${encodeURIComponent(system.id)}`;
+        link.href = `${neoRoute ? "/neo" : ""}/systems/${encodeURIComponent(system.id)}`;
         link.append(el("div", "eyebrow", system.id), el("h2", "", system.label),
           el("p", "muted", `${system.sensor_count} ${system.sensor_count === 1 ? "sensor" : "sensors"}`));
         const status = el("p", "muted", "Loading sensors…");
@@ -120,6 +151,7 @@
       }
       document.getElementById("demo-label").textContent = latest.demo ? "Demo data · no database connection" : "Public live system";
       document.getElementById("refresh-error").textContent = "";
+      await loadHistory(false);
     }
     function renderSystem() {
       root.replaceChildren();
@@ -186,25 +218,58 @@
         chart.append(el("p", "notice error",
           `${incompatibleCount} readings with a mismatched unit or instrument were excluded from averages.`));
       }
-      const w = 900, h = 250, pad = 32;
-      const values = rows.map(r => r.value).filter(v => Number.isFinite(v));
+      const valid = rows.filter(r => Number.isFinite(r.value) && Number.isFinite(Date.parse(r.time)));
+      const values = valid.map(r => r.value);
       if (!values.length) { chart.append(el("p", "muted", "No compatible valid values in this time range.")); return; }
+      const w = Math.max(280, chart.clientWidth - 16), h = 280;
+      const left = 90, right = w - 18, top = 24, bottom = h - 58;
       let ymin = Math.min(...values), ymax = Math.max(...values);
       if (ymin === ymax) { const extra = Math.abs(ymin * .05) || 1; ymin -= extra; ymax += extra; }
       const times = rows.map(r => Date.parse(r.time)).filter(Number.isFinite);
       const xmin = Math.min(...times), xmax = Math.max(...times);
-      const x = t => pad + (xmax === xmin ? .5 : (t - xmin) / (xmax - xmin)) * (w - pad * 2);
-      const y = v => h - pad - ((v - ymin) / (ymax - ymin)) * (h - pad * 2);
+      const x = t => left + (xmax === xmin ? .5 : (t - xmin) / (xmax - xmin)) * (right - left);
+      const y = v => bottom - ((v - ymin) / (ymax - ymin)) * (bottom - top);
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
       svg.setAttribute("role", "img");
-      svg.setAttribute("aria-label", `History of ${state.selected} in ${data.unit}`);
-      for (const yy of [pad, h / 2, h - pad]) {
+      svg.setAttribute("aria-label", `History of ${state.selected}, ${data.unit} versus local time`);
+      const text = (value, xPos, yPos, anchor, cls) => {
+        const label = document.createElementNS(svg.namespaceURI, "text");
+        label.setAttribute("x", xPos); label.setAttribute("y", yPos);
+        label.setAttribute("text-anchor", anchor); label.setAttribute("class", cls);
+        label.textContent = value;
+        svg.append(label);
+      };
+      const magnitude = Math.max(Math.abs(ymin), Math.abs(ymax));
+      const precision = Math.min(9, Math.max(4, Math.ceil(Math.log10(magnitude / (ymax - ymin) || 1)) + 3));
+      const formatValue = value => Math.abs(value) >= 1e6 || (value !== 0 && Math.abs(value) < .001)
+        ? value.toExponential(precision - 1) : value.toLocaleString(undefined, {maximumSignificantDigits: precision});
+      text(data.unit, left, 15, "start", "axis-title");
+      for (const fraction of [0, .25, .5, .75, 1]) {
+        const yy = top + fraction * (bottom - top);
         const line = document.createElementNS(svg.namespaceURI, "line");
-        line.setAttribute("x1", pad); line.setAttribute("x2", w - pad);
+        line.setAttribute("x1", left); line.setAttribute("x2", right);
         line.setAttribute("y1", yy); line.setAttribute("y2", yy); line.setAttribute("class", "axis");
         svg.append(line);
+        text(formatValue(ymax - fraction * (ymax - ymin)), left - 8, yy + 4, "end", "axis-label");
       }
+      const axis = document.createElementNS(svg.namespaceURI, "path");
+      axis.setAttribute("d", `M ${left} ${top} V ${bottom} H ${right}`);
+      axis.setAttribute("class", "axis-boundary");
+      axis.setAttribute("fill", "none");
+      svg.append(axis);
+      const showDate = xmax - xmin >= 86400000 || new Date(xmin).toDateString() !== new Date(xmax).toDateString();
+      const dateOptions = showDate
+        ? {month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"}
+        : {hour: "2-digit", minute: "2-digit", ...(xmax - xmin <= 60000 ? {second: "2-digit"} : {})};
+      const timeTicks = xmax === xmin ? [.5] : showDate && w < 500 ? [0, 1] : [0, .5, 1];
+      for (const fraction of timeTicks) {
+        const timestamp = xmin + fraction * (xmax - xmin);
+        const position = left + fraction * (right - left);
+        text(new Date(timestamp).toLocaleString(undefined, dateOptions), position, bottom + 20,
+          fraction === 0 ? "start" : fraction === 1 ? "end" : "middle", "axis-label");
+      }
+      text("Local time", (left + right) / 2, h - 9, "middle", "axis-title");
       let segment = [];
       const flush = () => {
         if (segment.length > 1) {
@@ -212,6 +277,12 @@
           poly.setAttribute("class", "chart-line");
           poly.setAttribute("points", segment.map(p => `${x(p.t)},${y(p.v)}`).join(" "));
           svg.append(poly);
+        } else if (segment.length === 1) {
+          const point = document.createElementNS(svg.namespaceURI, "circle");
+          point.setAttribute("class", "chart-point");
+          point.setAttribute("cx", x(segment[0].t)); point.setAttribute("cy", y(segment[0].v));
+          point.setAttribute("r", "3");
+          svg.append(point);
         }
         segment = [];
       };
@@ -223,15 +294,32 @@
       flush();
       chart.append(svg, el("p", "muted", `${values.length} valid buckets · ${data.unit} · ${new Date(xmax).toLocaleString()} latest`));
     }
-    async function loadHistory() {
+    async function loadHistory(showLoading = true) {
       const chart = document.getElementById("history-chart");
       if (!chart || !state.selected) return;
-      chart.replaceChildren(el("p", "muted", "Loading history…"));
+      const selected = state.selected, range = state.range;
+      if (showLoading) {
+        state.history = null;
+        chart.replaceChildren(el("p", "muted", "Loading history…"));
+      }
       try {
-        const data = await getJson(`/api/lab/systems/${encodeURIComponent(systemId)}/history?sensor_id=${encodeURIComponent(state.selected)}&range=${encodeURIComponent(state.range)}`);
+        const data = await getJson(`/api/lab/systems/${encodeURIComponent(systemId)}/history?sensor_id=${encodeURIComponent(selected)}&range=${encodeURIComponent(range)}`);
+        if (!chart.isConnected || state.selected !== selected || state.range !== range) return;
+        state.history = data;
         renderChart(chart, data);
-      } catch (error) { chart.replaceChildren(el("p", "muted error", error.message)); }
+      } catch (error) {
+        if (chart.isConnected && state.selected === selected && state.range === range)
+          chart.replaceChildren(el("p", "muted error", error.message));
+      }
     }
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        const chart = document.getElementById("history-chart");
+        if (chart && state.history) renderChart(chart, state.history);
+      }, 100);
+    });
     (systemId ? loadSystem() : showIndex()).catch(showError);
     if (systemId) window.setInterval(() => {
       refreshLatest().catch(error => {
